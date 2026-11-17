@@ -2,6 +2,7 @@ import { describe, expect, test } from "vitest";
 import { buildSetupRequests } from "@/lib/sheets/setup-requests";
 import { TABS } from "@/lib/sheets/schema";
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- deep request JSON is inspected ad hoc in tests
 type Req = Record<string, any>;
 const tabCount = Object.keys(TABS).length;
 const kinds = (reqs: Req[], kind: string) => reqs.filter((r) => kind in r);

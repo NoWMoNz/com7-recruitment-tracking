@@ -7,7 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "vitest run"
+    "test": "vitest run",
+    "sheet:setup": "tsx --env-file=.env.local scripts/setup-sheet.ts",
+    "sheet:seed": "tsx --env-file=.env.local scripts/seed-sheet.ts"
   },
   "dependencies": {
     "class-variance-authority": "^0.7.1",

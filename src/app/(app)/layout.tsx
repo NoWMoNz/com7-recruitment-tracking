@@ -21,7 +21,7 @@ function LogoutButton({ className, rail = false }: { className?: string; rail?: 
         className={cn(
           "group/logout rounded-full bg-white/80 text-foreground ring-1 ring-black/[0.05] outline-none hover:bg-white hover:shadow-[0_8px_20px_-8px_rgba(0,0,0,0.25)] focus-visible:ring-3 focus-visible:ring-ring/50",
           PRESS,
-          rail ? "flex h-10 w-full items-center gap-3 overflow-hidden pr-4" : "grid size-10 place-items-center",
+          rail ? "relative flex h-10 w-full items-center gap-3 overflow-hidden pr-4" : "grid size-10 place-items-center",
           className,
         )}
       >
@@ -30,7 +30,8 @@ function LogoutButton({ className, rail = false }: { className?: string; rail?: 
             <span className="grid size-10 shrink-0 place-items-center">
               <LogoutIcon />
             </span>
-            <span className={RAIL_LABEL}>ออกจากระบบ</span>
+            {/* Centred across the whole button (not in what is left of it after the icon); inset-x-10 keeps it clear of the icon. */}
+            <span className={cn(RAIL_LABEL, "absolute inset-x-10 top-0 flex-none text-center leading-10")}>ออกจากระบบ</span>
           </>
         ) : (
           <LogoutIcon />

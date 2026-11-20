@@ -94,7 +94,7 @@ describe("TABS", () => {
   test("covers every tab in the spec", () => {
     expect(Object.keys(TABS).sort()).toEqual([
       "Approvals", "Branches", "Import_Initial", "Import_NewEmployee", "Import_Requisition", "Import_Resign",
-      "Import_Transfer", "MonthlySnapshots", "NewHires", "Offers", "Positions", "Quota", "RecruiterAssignments",
+      "Import_Transfer", "Logins", "MonthlySnapshots", "NewHires", "Offers", "Positions", "Quota", "RecruiterAssignments",
       "Requisitions", "Requisitions_Archive", "ReviewQueue", "Settings", "SourcingChannels", "StatusLog",
       "StatusLog_Archive", "Turndowns", "Users",
     ]);

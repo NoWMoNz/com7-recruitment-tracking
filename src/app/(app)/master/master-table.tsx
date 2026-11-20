@@ -2,6 +2,7 @@
 
 import { useId, useState } from "react";
 import { Pencil, Plus, Search, Trash2 } from "lucide-react";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Dropdown } from "@/components/ui/dropdown";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -9,7 +10,7 @@ import { formatThaiDate } from "@/lib/domain/dates";
 import type { MasterEntity } from "@/lib/domain/master";
 import { cn } from "@/lib/utils";
 import { Field, FIELD, FormError, useSubmit } from "../form-bits";
-import { removeAssignment, saveMaster } from "./actions";
+import { removeAssignment, removeUser, saveMaster } from "./actions";
 
 export type Cell = string | number | boolean | null;
 export type Row = Record<string, Cell> & { _key: string };
@@ -131,24 +132,36 @@ function EditForm({ entity, noun, fields, row, blank, onDone }: { entity: Master
   );
 }
 
-function DeleteButton({ row, noun }: { row: Row; noun: string }) {
-  const { pending, errors, run } = useSubmit(() => {});
+function DeleteButton({ entity, row, noun }: { entity: MasterEntity; row: Row; noun: string }) {
+  const [asking, setAsking] = useState(false);
+  const { pending, errors, run } = useSubmit(() => setAsking(false));
+  const name = String(row.name ?? row._key);
   return (
-    <span className="inline-flex items-center gap-2">
-      {errors.form && <span className="text-xs text-destructive">{errors.form}</span>}
+    <>
       <button
         type="button"
-        disabled={pending}
-        onClick={() => {
-          if (window.confirm(`ลบ${noun}นี้?`)) run(() => removeAssignment(row._key), `ลบ${noun}แล้ว`);
-        }}
+        onClick={() => setAsking(true)}
         aria-label={`ลบ${noun}`}
         title={`ลบ${noun}`}
-        className="grid size-8 place-items-center rounded-full text-muted-foreground hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
+        className="grid size-8 place-items-center rounded-full text-muted-foreground outline-none hover:bg-destructive/10 hover:text-destructive focus-visible:ring-3 focus-visible:ring-ring/50"
       >
         <Trash2 className="size-4" aria-hidden />
       </button>
-    </span>
+      <ConfirmDialog
+        open={asking}
+        onOpenChange={setAsking}
+        title={`ลบ${noun}นี้?`}
+        description={
+          <>
+            <span className="font-medium text-foreground">{name}</span> จะถูกลบออกจาก Google Sheet ทำย้อนกลับไม่ได้
+            {errors.form && <span className="mt-3 block rounded-xl bg-destructive/10 px-3 py-2 text-destructive">{errors.form}</span>}
+          </>
+        }
+        confirmLabel="ลบ"
+        pending={pending}
+        onConfirm={() => run(() => (entity === "Users" ? removeUser(row._key) : removeAssignment(row._key)), `ลบ${noun}แล้ว`)}
+      />
+    </>
   );
 }
 
@@ -193,7 +206,8 @@ export function MasterTable({ entity, noun, rows, columns, fields, blank, deleta
                     {i === 0 && subs.length > 0 && <span className="block text-xs text-muted-foreground">{subs.map((s) => show(r[s.key], s.format)).filter((v) => v !== "-").join(" · ")}</span>}
                   </td>
                 ))}
-                <td className="px-5 py-2.5 text-right whitespace-nowrap">
+                <td className="px-5 py-2.5 whitespace-nowrap">
+                  <div className="flex items-center justify-end gap-1">
                   <button
                     type="button"
                     onClick={() => setEditing({ row: r })}
@@ -203,7 +217,8 @@ export function MasterTable({ entity, noun, rows, columns, fields, blank, deleta
                   >
                     <Pencil className="size-4" aria-hidden />
                   </button>
-                  {deletable && <DeleteButton row={r} noun={noun} />}
+                  {deletable && <DeleteButton entity={entity} row={r} noun={noun} />}
+                  </div>
                 </td>
               </tr>
             ))}

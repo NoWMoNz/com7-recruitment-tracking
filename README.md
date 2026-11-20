@@ -87,6 +87,9 @@ pnpm dev
 - ตั้ง Environment Variables: `DATA_SOURCE=sheets`, `SHEET_ID`, `GOOGLE_SERVICE_ACCOUNT_EMAIL`, `GOOGLE_PRIVATE_KEY`,
   `AUTH_SECRET`, `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET` (**ห้าม** ตั้ง `AUTH_DEV_LOGIN` บน production — และถึงตั้งไว้ระบบก็ไม่เปิดให้)
 - Preview deployment ควรชี้ไปที่ Sheet ทดสอบ ไม่ใช่ Sheet จริง
+- เข้าด้วยชื่อผู้ใช้/รหัสผ่าน (ใช้ระหว่างยังไม่มี Google OAuth ได้): รัน `pnpm sheet:setup` เพื่อสร้างแท็บ `Logins` (หรือสร้างเองโดยมีหัวคอลัมน์
+  `username`, `email`, `password_hash`) แล้วผู้ดูแลระบบตั้งชื่อ/รหัสผ่าน/สิทธิ์ได้ที่หน้า "กำหนดสิทธิ์ผู้ใช้" โดยไม่ต้องมีบัญชี Google ระบบจะเพิ่มผู้ใช้
+  `ชื่อ@login.local` ในแท็บ Users ให้ (แก้ขอบเขตหรือปิดบัญชีได้ที่นั่น) ฟอร์มจะขึ้นที่หน้า login เมื่อมีอย่างน้อย 1 บัญชี รหัสผ่านเก็บเป็น hash เท่านั้น
 
 ## โครงสร้างโค้ด
 

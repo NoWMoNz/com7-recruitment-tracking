@@ -2,7 +2,9 @@ import { Suspense } from "react";
 import { PageHeader } from "@/components/page-header";
 import { getSessionUser } from "@/lib/auth/session-user";
 import { keyOf, ROLES } from "@/lib/domain/master";
+import { normalizeEmail } from "@/lib/domain/permissions";
 import { getRepo } from "@/lib/repo";
+import { LoginPanel } from "./login-panel";
 import { MasterTable, type Row } from "../master/master-table";
 
 const TITLE = "กำหนดสิทธิ์ผู้ใช้";
@@ -16,12 +18,16 @@ async function UsersContent() {
   }
   const repo = getRepo();
   const [users, branches] = await Promise.all([repo.list("Users"), repo.list("Branches")]);
+  // A missing Logins tab (sheet not set up yet) just means no name + password sign-ins so far.
+  const logins = await repo.list("Logins").catch(() => []);
+  const roleOf = new Map(users.map((u) => [normalizeEmail(u.email), ROLE_LABEL[u.role] ?? u.role]));
   const regions = [...new Set(branches.map((b) => b.region).filter(Boolean))];
   const rows: Row[] = users
     .map((u) => ({ ...u, role_label: ROLE_LABEL[u.role] ?? u.role, scope_label: u.scope || "ทั้งหมด", _key: keyOf("Users", u as unknown as Record<string, unknown>) }))
     .sort((a, b) => Number(b.active) - Number(a.active) || a.name.localeCompare(b.name, "th"));
 
   return (
+    <div className="space-y-4">
     <MasterTable
       entity="Users"
       noun="ผู้ใช้"
@@ -41,7 +47,14 @@ async function UsersContent() {
         { name: "active", label: "เปิดใช้งาน (ปิด = เข้าระบบไม่ได้)", type: "checkbox" },
       ]}
       blank={{ role: "ta", active: "on" }}
+      deletable
     />
+    {/* Only names and emails go to the browser, never the hashes. */}
+    <LoginPanel
+      logins={logins.map((l) => ({ username: l.username, role: roleOf.get(normalizeEmail(l.email)) ?? "ไม่พบผู้ใช้ในตารางด้านบน" }))}
+      roles={ROLES.map((r) => ({ value: r, label: ROLE_LABEL[r] }))}
+    />
+    </div>
   );
 }
 

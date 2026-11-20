@@ -1,22 +1,24 @@
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
-import { LogIn } from "lucide-react";
+import { KeyRound, LogIn } from "lucide-react";
 import { AuthError } from "next-auth";
 import { signIn } from "@/auth";
 import { devLoginEnabled } from "@/auth.config";
+import { getRepo } from "@/lib/repo";
 import { Com7Logo } from "@/components/com7-logo";
 import { PRESS, SubmitButton } from "@/components/pending";
 import { Input } from "@/components/ui/input";
 
 const ERRORS: Record<string, string> = {
   AccessDenied: "บัญชีนี้ยังไม่มีสิทธิ์เข้าใช้งาน กรุณาติดต่อผู้ดูแลระบบ",
+  CredentialsSignin: "ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง",
 };
 
-async function login(provider: "google" | "dev", formData?: FormData) {
+async function login(provider: "google" | "dev" | "password", fields: Record<string, string> = {}) {
   "use server";
   try {
     await signIn(provider, {
-      ...(formData ? { email: String(formData.get("email") ?? "") } : {}),
+      ...fields,
       redirectTo: "/dashboard",
     });
   } catch (e) {
@@ -32,7 +34,12 @@ async function googleLogin() {
 
 async function devLogin(formData: FormData) {
   "use server";
-  await login("dev", formData);
+  await login("dev", { email: String(formData.get("email") ?? "") });
+}
+
+async function passwordLogin(formData: FormData) {
+  "use server";
+  await login("password", { username: String(formData.get("username") ?? ""), password: String(formData.get("password") ?? "") });
 }
 
 async function ErrorMessage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
@@ -42,6 +49,26 @@ async function ErrorMessage({ searchParams }: { searchParams: Promise<{ error?: 
     <p role="alert" className="rounded-2xl bg-destructive/10 px-4 py-2.5 text-sm text-destructive">
       {ERRORS[error] ?? "เข้าสู่ระบบไม่สำเร็จ กรุณาลองใหม่"}
     </p>
+  );
+}
+
+/** The name + password form, shown only once someone has been given a login in the Logins tab. */
+async function PasswordForm() {
+  const any = await getRepo().list("Logins").then((l) => l.length > 0).catch(() => false);
+  if (!any) return null;
+  return (
+    <form action={passwordLogin} className="liquid-glass-tile space-y-2 rounded-3xl p-4">
+      <p className="text-xs text-foreground/65">หรือเข้าด้วยชื่อผู้ใช้และรหัสผ่าน</p>
+      <Input name="username" required autoComplete="username" placeholder="ชื่อผู้ใช้" aria-label="ชื่อผู้ใช้" className="h-11 rounded-full bg-white px-4" />
+      <Input name="password" type="password" required autoComplete="current-password" placeholder="รหัสผ่าน" aria-label="รหัสผ่าน" className="h-11 rounded-full bg-white px-4" />
+      <SubmitButton
+        pendingLabel="กำลังเข้าสู่ระบบ…"
+        className="flex h-11 w-full items-center justify-center gap-2 rounded-full bg-white text-sm font-medium ring-1 ring-black/[0.1] outline-none hover:shadow-[0_10px_24px_-10px_rgba(0,0,0,0.3)] focus-visible:ring-3 focus-visible:ring-ring/50"
+      >
+        <KeyRound className="size-4" aria-hidden />
+        เข้าสู่ระบบ
+      </SubmitButton>
+    </form>
   );
 }
 
@@ -82,6 +109,10 @@ export default function LoginPage({ searchParams }: { searchParams: Promise<{ er
             </SubmitButton>
           </form>
           <p className="text-center text-xs text-foreground/65">ใช้บัญชี Google ที่ผู้ดูแลระบบเพิ่มสิทธิ์ไว้แล้วเท่านั้น</p>
+
+          <Suspense fallback={null}>
+            <PasswordForm />
+          </Suspense>
 
           {devLoginEnabled && (
             <form action={devLogin} className="liquid-glass-tile space-y-2 rounded-3xl p-4">

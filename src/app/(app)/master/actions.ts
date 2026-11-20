@@ -1,6 +1,7 @@
 "use server";
 
 import { getSessionUser } from "@/lib/auth/session-user";
+import { normalizeEmail } from "@/lib/domain/permissions";
 import { todayBangkok } from "@/lib/domain/dates";
 import { keyOf, planNewRequisitions, planRequisitionEdit, validateMaster, type FormInput, type MasterEntity } from "@/lib/domain/master";
 import { getRepo } from "@/lib/repo";
@@ -45,6 +46,36 @@ export async function removeAssignment(key: string): Promise<ActionResult> {
   if (!hit) return fail(GONE);
   try {
     await repo.removeAt("RecruiterAssignments", [hit.rowNumber]);
+  } catch (e) {
+    return writeError(e);
+  }
+  return { ok: true };
+}
+
+/**
+ * Delete a user and any name + password sign-in tied to it. Refused for yourself, for the last active admin and for
+ * anyone still named on a requisition, Offer or recruiter assignment (turn those off instead, so history keeps its names).
+ */
+export async function removeUser(email: string): Promise<ActionResult> {
+  const viewer = await admin();
+  if (!viewer) return fail(ADMIN_ONLY);
+  const key = normalizeEmail(email);
+  if (normalizeEmail(viewer.email) === key) return fail("ลบบัญชีของตัวเองไม่ได้");
+  const repo = getRepo();
+  try {
+    const users = await repo.listNumbered("Users");
+    const hit = users.find((u) => normalizeEmail(u.row.email) === key);
+    if (!hit) return fail(GONE);
+    const otherAdmins = users.filter((u) => u.row.active && u.row.role === "super_admin" && normalizeEmail(u.row.email) !== key).length;
+    if (hit.row.active && hit.row.role === "super_admin" && otherAdmins === 0) return fail("ต้องมีผู้ดูแลระบบที่ใช้งานอยู่อย่างน้อย 1 คน");
+    const [reqs, offers, assignments, logins] = await Promise.all([repo.list("Requisitions"), repo.list("Offers"), repo.list("RecruiterAssignments"), repo.listNumbered("Logins").catch(() => [])]);
+    if (reqs.some((r) => normalizeEmail(r.ta_email) === key) || offers.some((o) => normalizeEmail(o.ta_email) === key) || assignments.some((a) => normalizeEmail(a.ta_email) === key)) {
+      return fail("ผู้ใช้นี้ยังเป็นเจ้าของตำแหน่งหรือถูกกำหนดเป็น TA อยู่ ลบไม่ได้ กรุณาปิดการใช้งานแทน");
+    }
+    const own = logins.filter((l) => normalizeEmail(l.row.email) === key).map((l) => l.rowNumber);
+    if (own.length) await repo.removeAt("Logins", own);
+    await repo.removeAt("Users", [hit.rowNumber]);
+    await Promise.all([repo.invalidate("Users"), repo.invalidate("Logins")]);
   } catch (e) {
     return writeError(e);
   }

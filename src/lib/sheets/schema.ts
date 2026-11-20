@@ -11,6 +11,7 @@ export type TabName =
   | "SourcingChannels"
   | "RecruiterAssignments"
   | "Users"
+  | "Logins"
   | "Settings"
   | "Import_Initial"
   | "Import_Requisition"
@@ -65,6 +66,8 @@ const defs: [TabName, boolean, ColSpec[]][] = [
   ["SourcingChannels", false, cols("channel", "active:b")],
   ["RecruiterAssignments", false, cols("branch_code", "position_group", "ta_email")],
   ["Users", false, cols("email", "name", "role", "scope", "active:b")],
+  // Name + password sign-in; the hash is `scrypt:salt:hash`. `email` is the Users-tab account it acts as.
+  ["Logins", false, cols("username", "email", "password_hash")],
   ["Settings", false, cols("key", "value")],
   ["Import_Initial", false, cols(
     "branch_code", "position_code", "request_date:d", "ta_email", "status", "title", "first_name", "last_name",

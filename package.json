@@ -10,7 +10,8 @@
     "test": "vitest run",
     "sheet:setup": "tsx --env-file=.env.local scripts/setup-sheet.ts",
     "sheet:seed": "tsx --env-file=.env.local scripts/seed-sheet.ts",
-    "quota:import": "tsx scripts/quota-import.ts"
+    "quota:import": "tsx scripts/quota-import.ts",
+    "password:hash": "tsx scripts/hash-password.ts"
   },
   "dependencies": {
     "@vercel/blob": "^2.9.0",

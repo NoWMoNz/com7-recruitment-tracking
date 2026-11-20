@@ -31,6 +31,13 @@ export interface RecruiterAssignment {
   ta_email: string;
 }
 
+/** A name + password sign-in (Logins tab). `email` is the Users-tab account it acts as. */
+export interface Login {
+  username: string;
+  email: string;
+  password_hash: string;
+}
+
 interface RowMap {
   Requisitions: Requisition;
   Requisitions_Archive: Requisition;
@@ -51,6 +58,7 @@ interface RowMap {
   Branches: Branch;
   Positions: Position;
   Users: User;
+  Logins: Login;
   Settings: SettingRow;
   SourcingChannels: SourcingChannel;
   RecruiterAssignments: RecruiterAssignment;
@@ -79,6 +87,14 @@ export class MissingColumnError extends Error {
   constructor(tab: string, columns: string[]) {
     super(`แท็บ ${tab} ยังไม่มีคอลัมน์ ${columns.join(", ")} (รัน pnpm sheet:setup)`);
     this.name = "MissingColumnError";
+  }
+}
+
+/** The Sheet has no tab by this name (a tab added by a newer version of the app); `pnpm sheet:setup` creates it. */
+export class MissingTabError extends Error {
+  constructor(tab: string) {
+    super(`ไม่พบแท็บ ${tab} ใน Google Sheet (รัน pnpm sheet:setup หรือสร้างแท็บชื่อ ${tab} เองพร้อมหัวคอลัมน์)`);
+    this.name = "MissingTabError";
   }
 }
 

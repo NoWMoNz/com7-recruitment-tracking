@@ -1,6 +1,6 @@
 import { findRowNumberById, objectToRow, rowsToObjects } from "@/lib/sheets/rows";
 import { TABS, type TabName } from "@/lib/sheets/schema";
-import { MissingColumnError, NotFoundError, type Repo, type RowOf } from "./types";
+import { MissingColumnError, MissingTabError, NotFoundError, type Repo, type RowOf } from "./types";
 import { applyPatch } from "./versioning";
 
 /** The subset of `sheets.spreadsheets.values` this repo uses (injectable for tests). */
@@ -167,7 +167,11 @@ export class SheetsRepo implements Repo {
   }
 
   async requireColumns(tab: TabName, columns: string[]): Promise<void> {
-    const values = await this.fresh(tab);
+    const values = await this.fresh(tab).catch((e: unknown) => {
+      // Google answers "Unable to parse range: Logins!…" when the tab does not exist.
+      if (e instanceof Error && /unable to parse range/i.test(e.message)) throw new MissingTabError(tab);
+      throw e;
+    });
     const header = (values[0] ?? []).map((h) => String(h).trim());
     const missing = columns.filter((c) => !header.includes(c));
     if (missing.length) throw new MissingColumnError(tab, missing);

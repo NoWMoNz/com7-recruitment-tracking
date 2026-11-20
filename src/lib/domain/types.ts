@@ -86,10 +86,17 @@ export interface StatusLogEntry {
   ref_id: string;
 }
 
+/** Shown for a branch whose business unit is not filled in yet. */
+export const UNKNOWN_BU = "ไม่ระบุ BU";
+/** A branch's business unit, or UNKNOWN_BU. */
+export const buOf = (b: { bu?: string } | undefined) => b?.bu?.trim() || UNKNOWN_BU;
+
 export interface Branch {
   branch_code: string;
   branch_name: string;
   brand: string;
+  /** Business unit ("Group ใหญ่" in HR's file), e.g. Apple, BaNANA, iCare. Empty = not set. */
+  bu: string;
   province: string;
   region: string;
   status: "Open" | "Closed" | "Project";
@@ -121,7 +128,16 @@ export interface NewHire extends Offer {
   tat_result: string;
 }
 
-export type ReviewType = "UnmatchedHire" | "TransferNoReq" | "OfferAtClosedStore";
+/** HR's headcount for one branch and position: the quota and the people actually there (from the latest HR report). */
+export interface QuotaLine {
+  branch_code: string;
+  position_code: string;
+  quota: number;
+  actual: number;
+  report_date: LocalDate;
+}
+
+export type ReviewType = "UnmatchedHire" | "TransferNoReq" | "OfferAtClosedStore" | "ResignWithdrawn";
 
 /** Something the processor could not decide on its own; super_admin resolves it in the web. */
 export interface ReviewItem {
@@ -169,6 +185,10 @@ export interface ImportResign {
   position_code: string;
   effective_date: LocalDate | null;
   processed_at: string;
+  /** Set when the resignation was withdrawn (ยกเลิกลาออก); empty = still a resignation. */
+  cancelled_at: string;
+  cancelled_by: string;
+  cancel_note: string;
 }
 
 export interface ImportTransfer {

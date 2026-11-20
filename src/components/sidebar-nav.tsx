@@ -2,19 +2,64 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ClipboardList, Database, FileBarChart, LayoutDashboard, PauseCircle, ShieldCheck, UserCog, Workflow } from "lucide-react";
+import { ClipboardList, FileBarChart, LayoutDashboard, PauseCircle, Settings, ShieldCheck, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const ITEMS = [
-  { href: "/dashboard", label: "Dashboard ภาพรวม", icon: LayoutDashboard },
-  { href: "/tracking", label: "ติดตามการสรรหา", icon: ClipboardList },
-  { href: "/hold", label: "ตำแหน่งที่พักไว้ (Hold)", icon: PauseCircle },
-  { href: "/reports", label: "Reports", icon: FileBarChart },
+interface Page {
+  href: string;
+  label: string;
+}
+interface Group {
+  /** Rail label; the first page is where the rail item leads. */
+  label: string;
+  icon: LucideIcon;
+  pages: Page[];
+  adminOnly?: boolean;
+}
+
+/** One rail item per group; pages that belong together share it and switch with tabs at the top of the page. */
+const GROUPS: Group[] = [
+  { label: "Dashboard ภาพรวม", icon: LayoutDashboard, pages: [{ href: "/dashboard", label: "Dashboard ภาพรวม" }] },
+  {
+    label: "ติดตามการสรรหา",
+    icon: ClipboardList,
+    pages: [
+      { href: "/tracking", label: "ติดตามการสรรหา" },
+      { href: "/manpower", label: "กำลังพล" },
+    ],
+  },
+  {
+    label: "Hold และลาออก",
+    icon: PauseCircle,
+    pages: [
+      { href: "/hold", label: "ตำแหน่งที่พักไว้ (Hold)" },
+      { href: "/resignations", label: "รายชื่อลาออก" },
+    ],
+  },
+  { label: "Reports", icon: FileBarChart, pages: [{ href: "/reports", label: "Reports" }] },
+  {
+    label: "งานรอจัดการ",
+    icon: ShieldCheck,
+    adminOnly: true,
+    pages: [
+      { href: "/approvals", label: "อนุมัติ Cancel / Hold" },
+      { href: "/process", label: "ประมวลผลข้อมูล" },
+    ],
+  },
+  {
+    label: "ตั้งค่า",
+    icon: Settings,
+    adminOnly: true,
+    pages: [
+      { href: "/master", label: "Master Data" },
+      { href: "/users", label: "กำหนดสิทธิ์ผู้ใช้" },
+    ],
+  },
 ];
-const APPROVALS = { href: "/approvals", label: "อนุมัติ Cancel / Hold", icon: ShieldCheck };
-const PROCESS = { href: "/process", label: "ประมวลผลข้อมูล", icon: Workflow };
-const MASTER = { href: "/master", label: "Master Data", icon: Database };
-const USERS = { href: "/users", label: "กำหนดสิทธิ์ผู้ใช้", icon: UserCog };
+const APPROVALS_HREF = "/approvals";
+const PROCESS_HREF = "/process";
+
+const groupOf = (pathname: string) => GROUPS.find((g) => g.pages.some((p) => pathname.startsWith(p.href)));
 
 /** Label that fades in when the rail (the `group/rail` ancestor) is hovered or focused. */
 export const RAIL_LABEL =
@@ -26,15 +71,17 @@ export const RAIL_LABEL =
  */
 export function SidebarNav({ className, admin = null }: { className?: string; admin?: { approvals: number; reviews: number } | null }) {
   const pathname = usePathname();
-  const items = admin === null ? ITEMS : [...ITEMS, APPROVALS, PROCESS, MASTER, USERS];
-  const badges: Record<string, number> = { [APPROVALS.href]: admin?.approvals ?? 0, [PROCESS.href]: admin?.reviews ?? 0 };
-  const waiting: Record<string, string> = { [APPROVALS.href]: "รอ", [PROCESS.href]: "ต้องตรวจ" };
+  const groups = GROUPS.filter((g) => !g.adminOnly || admin !== null);
+  const badges: Record<string, number> = { [APPROVALS_HREF]: admin?.approvals ?? 0, [PROCESS_HREF]: admin?.reviews ?? 0 };
+  const waiting: Record<string, string> = { [APPROVALS_HREF]: "รอ", [PROCESS_HREF]: "ต้องตรวจ" };
   return (
     <nav aria-label="เมนูหลัก" className={cn("flex w-full flex-col gap-2", className)}>
-      {items.map(({ href, label, icon: Icon }) => {
-        const active = pathname.startsWith(href);
-        const badge = badges[href] ?? 0;
-        const fullLabel = badge ? `${label} (${waiting[href]} ${badge} รายการ)` : label;
+      {groups.map(({ label, icon: Icon, pages }) => {
+        const href = pages[0].href;
+        const active = pages.some((p) => pathname.startsWith(p.href));
+        const badge = pages.reduce((n, p) => n + (badges[p.href] ?? 0), 0);
+        const detail = pages.filter((p) => badges[p.href]).map((p) => `${waiting[p.href]} ${badges[p.href]} รายการ`).join(", ");
+        const fullLabel = badge ? `${label} (${detail})` : label;
         return (
           <Link
             key={href}
@@ -57,6 +104,36 @@ export function SidebarNav({ className, admin = null }: { className?: string; ad
               )}
             </span>
             <span className={RAIL_LABEL}>{label}</span>
+          </Link>
+        );
+      })}
+    </nav>
+  );
+}
+
+/**
+ * Tabs for switching between the pages of the group the current page belongs to. Renders nothing for a page
+ * that is on its own, so the layout can always include it.
+ */
+export function SectionTabs() {
+  const pathname = usePathname();
+  const group = groupOf(pathname);
+  if (!group || group.pages.length < 2) return null;
+  return (
+    <nav aria-label={group.label} className="inline-flex max-w-full gap-1 self-start overflow-x-auto rounded-full bg-black/[0.06] p-1 [scrollbar-width:none]">
+      {group.pages.map((p) => {
+        const active = pathname.startsWith(p.href);
+        return (
+          <Link
+            key={p.href}
+            href={p.href}
+            aria-current={active ? "page" : undefined}
+            className={cn(
+              "shrink-0 rounded-full px-4 py-1.5 text-sm whitespace-nowrap transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+              active ? "bg-white font-medium shadow-sm shadow-black/10" : "text-foreground/65 hover:bg-white/50",
+            )}
+          >
+            {p.label}
           </Link>
         );
       })}

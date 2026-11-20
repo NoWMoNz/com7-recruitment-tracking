@@ -5,6 +5,7 @@ import type {
   ImportNewEmployee,
   ImportRequisition,
   ImportResign,
+  QuotaLine,
   ImportTransfer,
   MonthlySnapshot,
   NewHire,
@@ -42,6 +43,7 @@ interface RowMap {
   Import_Initial: ImportInitial;
   Import_Requisition: ImportRequisition;
   Import_Resign: ImportResign;
+  Quota: QuotaLine;
   Import_Transfer: ImportTransfer;
   Import_NewEmployee: ImportNewEmployee;
   StatusLog: StatusLogEntry;
@@ -72,7 +74,17 @@ export class NotFoundError extends Error {
   }
 }
 
+/** The sheet's header lacks columns this version of the app needs; `pnpm sheet:setup` adds them. */
+export class MissingColumnError extends Error {
+  constructor(tab: string, columns: string[]) {
+    super(`แท็บ ${tab} ยังไม่มีคอลัมน์ ${columns.join(", ")} (รัน pnpm sheet:setup)`);
+    this.name = "MissingColumnError";
+  }
+}
+
 export interface Repo {
+  /** Throws MissingColumnError when the tab's header lacks any of these columns (always passes for the in-memory repo). */
+  requireColumns(tab: TabName, columns: string[]): Promise<void>;
   /** May be served from a cache up to 60 seconds old. */
   list<T extends TabName>(tab: T): Promise<RowOf<T>[]>;
   /** Always reads the source, bypassing any cache. */

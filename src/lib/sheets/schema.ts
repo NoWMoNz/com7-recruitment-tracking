@@ -15,6 +15,7 @@ export type TabName =
   | "Import_Initial"
   | "Import_Requisition"
   | "Import_Resign"
+  | "Quota"
   | "Import_Transfer"
   | "Import_NewEmployee"
   | "Requisitions"
@@ -58,7 +59,7 @@ const STATUS_LOG_COLS = cols(
 
 const defs: [TabName, boolean, ColSpec[]][] = [
   ["Branches", false, cols(
-    "branch_code", "branch_name", "brand", "province", "region", "status", "open_date:d", "close_date:d",
+    "branch_code", "branch_name", "brand", "bu", "province", "region", "status", "open_date:d", "close_date:d",
   )],
   ["Positions", false, cols("position_code", "position_name", "position_group", "sla_days:n")],
   ["SourcingChannels", false, cols("channel", "active:b")],
@@ -72,9 +73,10 @@ const defs: [TabName, boolean, ColSpec[]][] = [
   ["Import_Requisition", false, cols(
     "branch_code", "position_code", "headcount:n", "request_date:d", "source", "note", "processed_at",
   )],
+  ["Quota", false, cols("branch_code", "position_code", "quota:n", "actual:n", "report_date:d")],
   ["Import_Resign", false, cols(
     "employee_id", "title", "first_name", "last_name", "branch_code", "position_code", "effective_date:d",
-    "processed_at",
+    "processed_at", "cancelled_at", "cancelled_by", "cancel_note",
   )],
   ["Import_Transfer", false, cols(
     "employee_id", "title", "first_name", "last_name", "from_branch", "from_position", "to_branch", "to_position",

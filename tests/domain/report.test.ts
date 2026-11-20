@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { byTa, groupHires, hiresBetween, indexLog, monthlyRows, monthRange, periodRange, periodText, statusAt, turndownsBetween, weekRange, wholeMonth, type ReportData } from "@/lib/domain/report";
+import { byTa, filtered, groupHires, hiresBetween, indexLog, monthlyRows, monthRange, periodRange, periodText, statusAt, turndownsBetween, weekRange, wholeMonth, type ReportData } from "@/lib/domain/report";
 import { parseSettings } from "@/lib/domain/settings";
 import type { NewHire, StatusLogEntry, Turndown } from "@/lib/domain/types";
 import { branch, offer, positions, req, user } from "./helpers";
@@ -57,6 +57,22 @@ describe("periodRange", () => {
     expect(periodText(periodRange({}, usual))).toBe("เดือน 2026-11");
     expect(periodText(periodRange({ from: "2026-10-01", to: "2026-11-05" }, usual))).toBe("01/10/2026 – 05/11/2026");
     expect(periodText(periodRange({ from: "2026-11-05", to: "2026-11-05" }, usual))).toBe("05/11/2026");
+  });
+});
+
+describe("filtered", () => {
+  test("narrows to one business unit; a branch without a BU counts as ไม่ระบุ BU", () => {
+    const d: ReportData = {
+      requisitions: [req({ id: "A", branch_code: "S7" }), req({ id: "B", branch_code: "BN" }), req({ id: "C", branch_code: "NOBU" })],
+      log: [],
+      branches: [branch({ branch_code: "S7", bu: "Apple" }), branch({ branch_code: "BN", bu: "BaNANA" }), branch({ branch_code: "NOBU", bu: "" })],
+      positions,
+      users: [ju],
+      settings: parseSettings([]),
+    };
+    expect(filtered(d, ju, { bu: "BaNANA" }).map((r) => r.id)).toEqual(["B"]);
+    expect(filtered(d, ju, { bu: "ไม่ระบุ BU" }).map((r) => r.id)).toEqual(["C"]);
+    expect(filtered(d, ju, {}).map((r) => r.id)).toEqual(["A", "B", "C"]);
   });
 });
 

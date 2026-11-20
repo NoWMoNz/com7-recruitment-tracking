@@ -1,0 +1,141 @@
+import { inScope } from "./permissions";
+import { buOf, ON_PROCESS, type Branch, type LocalDate, type Position, type QuotaLine, type Requisition, type User } from "./types";
+
+/** Short = fewer people than quota in some position; over = more (and nothing short); full = every position on quota. */
+export type ManpowerStatus = "short" | "over" | "full";
+/** Open in the system compared with HR's shortage: equal, fewer open than short, or more open than short. */
+export type OpenMatch = "match" | "fewer" | "more";
+
+export interface ManpowerPosition {
+  positionCode: string;
+  positionName: string;
+  quota: number;
+  actual: number;
+  short: number;
+  over: number;
+  /** Requisitions of this branch and position that are in progress in the system (date reached, not on hold or closed). */
+  open: number;
+  match: OpenMatch;
+}
+
+export interface ManpowerRow {
+  branchCode: string;
+  branchName: string;
+  bu: string;
+  region: string;
+  province: string;
+  quota: number;
+  actual: number;
+  /** Sum over positions of max(0, quota − actual), so a surplus in one position never hides a shortage in another. */
+  short: number;
+  over: number;
+  open: number;
+  status: ManpowerStatus;
+  match: OpenMatch;
+  positions: ManpowerPosition[];
+}
+
+export interface ManpowerFilter {
+  bu?: string;
+  region?: string;
+  status?: ManpowerStatus;
+  q?: string;
+}
+
+export const MANPOWER_STATUS_LABEL: Record<ManpowerStatus, string> = { short: "ขาด", over: "เกิน", full: "ครบ" };
+export const OPEN_MATCH_LABEL: Record<OpenMatch, string> = { match: "ตรงกัน", fewer: "เปิดไม่ครบ", more: "เปิดเกิน" };
+
+const UNKNOWN_REGION = "ไม่ระบุ";
+const matchOf = (open: number, short: number): OpenMatch => (open === short ? "match" : open < short ? "fewer" : "more");
+
+/**
+ * One row per branch from HR's Quota lines. Closed branches, branches not in Branches and branches outside the
+ * viewer's scope are left out; `closedBranches` counts the closed ones the viewer could have seen.
+ */
+export function buildManpowerRows(
+  d: { quota: QuotaLine[]; requisitions: Requisition[]; branches: Branch[]; positions: Position[] },
+  viewer: User,
+  today: LocalDate,
+): { rows: ManpowerRow[]; closedBranches: number } {
+  const branches = new Map(d.branches.map((b) => [b.branch_code, b]));
+  const positionName = new Map(d.positions.map((p) => [p.position_code, p.position_name]));
+
+  const open = new Map<string, number>();
+  for (const r of d.requisitions) {
+    if (!ON_PROCESS.includes(r.status) || r.request_date > today) continue;
+    const key = `${r.branch_code}|${r.position_code}`;
+    open.set(key, (open.get(key) ?? 0) + 1);
+  }
+
+  const byBranch = new Map<string, QuotaLine[]>();
+  for (const l of d.quota) byBranch.set(l.branch_code, [...(byBranch.get(l.branch_code) ?? []), l]);
+
+  const rows: ManpowerRow[] = [];
+  const closed = new Set<string>();
+  for (const [code, lines] of byBranch) {
+    const b = branches.get(code);
+    if (!b || !inScope(viewer, b)) continue;
+    if (b.status === "Closed") {
+      closed.add(code);
+      continue;
+    }
+    const positions: ManpowerPosition[] = lines
+      .map((l) => {
+        const short = Math.max(0, l.quota - l.actual);
+        const o = open.get(`${code}|${l.position_code}`) ?? 0;
+        return {
+          positionCode: l.position_code,
+          positionName: positionName.get(l.position_code) || l.position_code,
+          quota: l.quota,
+          actual: l.actual,
+          short,
+          over: Math.max(0, l.actual - l.quota),
+          open: o,
+          match: matchOf(o, short),
+        };
+      })
+      .sort((a, b) => b.short - a.short || a.positionName.localeCompare(b.positionName, "th"));
+    const sum = (k: "quota" | "actual" | "short" | "over" | "open") => positions.reduce((n, p) => n + p[k], 0);
+    const short = sum("short");
+    const over = sum("over");
+    rows.push({
+      branchCode: code,
+      branchName: b.branch_name || code,
+      bu: buOf(b),
+      region: b.region || UNKNOWN_REGION,
+      province: b.province,
+      quota: sum("quota"),
+      actual: sum("actual"),
+      short,
+      over,
+      open: sum("open"),
+      status: short > 0 ? "short" : over > 0 ? "over" : "full",
+      match: matchOf(sum("open"), short),
+      positions,
+    });
+  }
+  rows.sort((a, b) => b.short - a.short || a.branchName.localeCompare(b.branchName, "th"));
+  return { rows, closedBranches: closed.size };
+}
+
+export function filterManpowerRows(rows: ManpowerRow[], f: ManpowerFilter): ManpowerRow[] {
+  const q = f.q?.trim().toLowerCase();
+  return rows.filter((r) => {
+    if (f.bu && r.bu !== f.bu) return false;
+    if (f.region && r.region !== f.region) return false;
+    if (f.status && r.status !== f.status) return false;
+    if (q && !`${r.branchName} ${r.branchCode}`.toLowerCase().includes(q)) return false;
+    return true;
+  });
+}
+
+export function summarizeManpower(rows: ManpowerRow[]): { branches: number; quota: number; actual: number; short: number; over: number; full: number } {
+  return {
+    branches: rows.length,
+    quota: rows.reduce((n, r) => n + r.quota, 0),
+    actual: rows.reduce((n, r) => n + r.actual, 0),
+    short: rows.reduce((n, r) => n + r.short, 0),
+    over: rows.reduce((n, r) => n + r.over, 0),
+    full: rows.filter((r) => r.status === "full").length,
+  };
+}

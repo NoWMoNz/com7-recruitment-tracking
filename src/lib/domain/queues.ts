@@ -1,7 +1,7 @@
 import { holdStart } from "./approval";
 import { canEditRequisition, inScope, normalizeEmail } from "./permissions";
 import { computeTat, holdDays } from "./tat";
-import type { Approval, ApprovalType, Branch, LocalDate, Position, Requisition, StatusLogEntry, User } from "./types";
+import { buOf, type Approval, type ApprovalType, type Branch, type LocalDate, type Position, type Requisition, type StatusLogEntry, type User } from "./types";
 
 interface Lookups {
   requisitions: Requisition[];
@@ -15,6 +15,7 @@ interface Place {
   version: number;
   region: string;
   province: string;
+  bu: string;
   branchCode: string;
   branchName: string;
   positionName: string;
@@ -36,6 +37,7 @@ function makeLookup(d: Lookups) {
       version: r.version,
       region: b?.region || UNKNOWN_REGION,
       province: b?.province ?? "",
+      bu: buOf(b),
       branchCode: r.branch_code,
       branchName: b?.branch_name || r.branch_code,
       positionName: positions.get(r.position_code)?.position_name || r.position_code,

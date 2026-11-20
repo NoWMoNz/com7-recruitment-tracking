@@ -1,4 +1,5 @@
 import { formatThaiDate, parseUserDate } from "./dates";
+import { entriesOf } from "./log-index";
 import { backdateError, type Plan } from "./offer";
 import { canEditRequisition } from "./permissions";
 import type { AppSettings } from "./settings";
@@ -115,7 +116,7 @@ export function planDecision(args: {
 
 /** Date the current hold started (latest move into Hold), or null. */
 export function holdStart(log: StatusLogEntry[], reqId: string): LocalDate | null {
-  const entries = log.filter((e) => e.req_id === reqId && e.to_status === "Hold").map((e) => e.effective_date);
+  const entries = entriesOf(log, reqId).filter((e) => e.to_status === "Hold").map((e) => e.effective_date);
   return entries.length ? entries.sort().at(-1)! : null;
 }
 

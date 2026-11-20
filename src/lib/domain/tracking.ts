@@ -3,6 +3,7 @@ import { slaFor, type AppSettings } from "./settings";
 import { agingBand, computeTat, holdDays, tatResult, type AgingBand, type TatResult } from "./tat";
 import {
   ON_PROCESS,
+  buOf,
   type Branch,
   type LocalDate,
   type Offer,
@@ -27,6 +28,8 @@ export interface TrackingRow {
   id: string;
   region: string;
   province: string;
+  /** Business unit of the branch (Group ใหญ่). */
+  bu: string;
   branchCode: string;
   branchName: string;
   positionName: string;
@@ -82,6 +85,7 @@ export function buildTrackingRows(
       id: r.id,
       region: b?.region || UNKNOWN_REGION,
       province: b?.province ?? "",
+      bu: buOf(b),
       branchCode: r.branch_code,
       branchName: b?.branch_name || r.branch_code,
       positionName: position?.position_name || r.position_code,

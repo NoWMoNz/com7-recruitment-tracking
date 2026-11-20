@@ -15,6 +15,13 @@ const DEFAULT_SETTINGS = [
   ["backdate_days", "3"],
 ];
 
+/** 1 -> A, 27 -> AA. */
+function columnLetter(n: number): string {
+  let s = "";
+  for (; n > 0; n = Math.floor((n - 1) / 26)) s = String.fromCharCode(65 + ((n - 1) % 26)) + s;
+  return s;
+}
+
 async function main() {
   const spreadsheetId = requireEnv("SHEET_ID");
   const adminEmail = process.argv[2]?.trim();
@@ -48,6 +55,19 @@ async function main() {
     });
   }
   console.log(`เขียนหัวคอลัมน์ ${missingHeader.length} แท็บ`);
+
+  // Tabs set up by an older version: add the columns introduced since then at the end of the header (data is matched by name).
+  const added: string[] = [];
+  const extra = tabs.flatMap((t, i) => {
+    const have = (headers.data.valueRanges?.[i]?.values?.[0] ?? []).map((h) => String(h).trim());
+    if (!have.length) return [];
+    const missing = TABS[t].columns.map((c) => c.key).filter((k) => !have.includes(k));
+    if (!missing.length) return [];
+    added.push(`${t} (${missing.join(", ")})`);
+    return [{ range: `${t}!${columnLetter(have.length + 1)}1`, values: [missing] }];
+  });
+  if (extra.length) await sheets.spreadsheets.values.batchUpdate({ spreadsheetId, requestBody: { valueInputOption: "RAW", data: extra } });
+  console.log(`เพิ่มคอลัมน์ใหม่ ${added.length} แท็บ${added.length ? `: ${added.join("; ")}` : ""}`);
 
   const settings = await sheets.spreadsheets.values.get({ spreadsheetId, range: "Settings!A2:B" });
   if (!settings.data.values?.length) {

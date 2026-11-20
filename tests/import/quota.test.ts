@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { branchName, codesFromSummary, convertQuota, reportDateFromName, type QuotaRow } from "@/lib/import/quota";
+import { branchName, closedDate, codesFromSummary, convertQuota, reportDateFromName, type QuotaRow } from "@/lib/import/quota";
 
 const row = (p: Partial<QuotaRow>): QuotaRow => ({
   id: "103",
   shop: "ID 103_Studio 7_Paradise Park_Srinakarin",
   brand: "Studio7",
+  bu: "Apple",
   region: "กรุงเทพมหานคร",
   province: "กรุงเทพมหานคร",
   position: "",
@@ -18,6 +19,18 @@ describe("helpers", () => {
   it("cleans the shop name", () => {
     expect(branchName("ID 103_Studio 7_Paradise Park_Srinakarin")).toBe("Studio 7 Paradise Park Srinakarin");
     expect(branchName("ID9_BN_Zeer_Rangsit_2.1")).toBe("BN Zeer Rangsit 2.1");
+  });
+
+  it("reads the closing date from a shop name, Buddhist year in 2 or 4 digits", () => {
+    expect(closedDate("ID 1831_BBP-MarketVillage-Bangphli-Samutprakan(ปิด25/10/69)")).toBe("2026-10-25");
+    expect(closedDate("ID 5_X (ปิด 9/9/2569)")).toBe("2026-09-09");
+    expect(closedDate("ID 103_Studio 7_Paradise Park_Srinakarin")).toBeNull();
+    expect(closedDate("ID 7_X(ปิด31/2/69)")).toBeNull(); // not a real day
+    expect(closedDate("ID 7_X(ปิด)")).toBeNull();
+  });
+
+  it("drops the closing marker from the branch name", () => {
+    expect(branchName("ID 1831_BBP-MarketVillage-Bangphli(ปิด25/10/69)")).toBe("BBP-MarketVillage-Bangphli");
   });
 
   it("reads the report date from the file name", () => {
@@ -51,6 +64,53 @@ describe("convertQuota", () => {
     ["Part Time", "Part Time"],
   ]);
 
+  it("a shop marked closed becomes a Closed branch with its date and opens no vacancies", () => {
+    const out = convertQuota(
+      [
+        row({ id: "1831", shop: "ID 1831_BBP-MarketVillage(ปิด25/10/69)", quota: 4, actual: 0, vacant: 4 }),
+        row({ id: "1831", shop: "ID 1831_BBP-MarketVillage(ปิด25/10/69)", position: "PIA", quota: 3, actual: 0, vacant: 3 }),
+        row({ id: "103", position: "PIA", quota: 3, actual: 1, vacant: 2 }),
+      ],
+      codes,
+      "2026-11-11",
+    );
+    expect(out.branches.map((b) => [b.branch_code, b.status, b.close_date, b.branch_name])).toEqual([
+      ["1831", "Closed", "2026-10-25", "BBP-MarketVillage"],
+      ["103", "Open", null, "Studio 7 Paradise Park Srinakarin"],
+    ]);
+    expect(out.initial.map((i) => i.branch_code)).toEqual(["103", "103"]);
+    expect(out.summary).toMatchObject({ closedBranches: 1, closedOpenings: 3, openings: 2 });
+  });
+
+  it("keeps quota and actual for every position line, including over, empty and closed shops", () => {
+    const out = convertQuota(
+      [
+        row({ quota: 8, actual: 4, vacant: 4 }), // branch total line: no position, not a Quota line
+        row({ position: "PIA", quota: 3, actual: 1, vacant: 2 }),
+        row({ position: "Branch Sales Manager", quota: 1, actual: 1, vacant: 0 }),
+        row({ position: "Part Time", quota: 0, actual: 2, vacant: -2 }),
+        row({ position: "ตำแหน่งที่ไม่มีรหัส", quota: 2, actual: 0, vacant: 2 }),
+        row({ id: "1831", shop: "ID 1831_BBP-X(ปิด25/10/69)", position: "PIA", quota: 3, actual: 0, vacant: 3 }),
+      ],
+      codes,
+      "2026-11-11",
+    );
+    expect(out.quota).toEqual([
+      { branch_code: "103", position_code: "PIA", quota: 3, actual: 1, report_date: "2026-11-11" },
+      { branch_code: "103", position_code: "BSM", quota: 1, actual: 1, report_date: "2026-11-11" },
+      { branch_code: "103", position_code: "Part Time", quota: 0, actual: 2, report_date: "2026-11-11" },
+      { branch_code: "1831", position_code: "PIA", quota: 3, actual: 0, report_date: "2026-11-11" },
+    ]);
+  });
+
+  it("keeps both groups: Group เล็ก as brand and Group ใหญ่ as BU", () => {
+    const out = convertQuota([row({}), row({ id: "9", shop: "ID9_BN_Zeer_Rangsit", brand: "BaNANA", bu: "BaNANA" })], codes, "2026-11-11");
+    expect(out.branches.map((b) => [b.branch_code, b.brand, b.bu])).toEqual([
+      ["103", "Studio7", "Apple"],
+      ["9", "BaNANA", "BaNANA"],
+    ]);
+  });
+
   it("makes branches, positions and one vacancy per person short", () => {
     const out = convertQuota(
       [
@@ -73,7 +133,7 @@ describe("convertQuota", () => {
       "103:PIA:2026-11-11:Vacancy",
       "105:PIA:2026-11-11:Vacancy",
     ]);
-    expect(out.summary).toEqual({ branches: 2, positions: 3, openings: 3, shortRows: 2, over: 2 });
+    expect(out.summary).toEqual({ branches: 2, positions: 3, openings: 3, shortRows: 2, over: 2, closedBranches: 0, closedOpenings: 0 });
     expect(out.warnings).toEqual([]);
   });
 

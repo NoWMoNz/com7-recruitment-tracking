@@ -1,7 +1,11 @@
 import { Suspense } from "react";
 import { getSessionUser } from "@/lib/auth/session-user";
 import { buildTrend } from "@/lib/domain/dashboard";
+import { buildManpowerRows } from "@/lib/domain/manpower";
+import { manpowerGaps, offerOutcomes, upcomingResignations } from "@/lib/domain/outlook";
+import { buildResignRows } from "@/lib/domain/resign";
 import { todayBangkok } from "@/lib/domain/dates";
+import { buOf } from "@/lib/domain/types";
 import { inScope } from "@/lib/domain/permissions";
 import { buildApprovalRows, buildHoldRows } from "@/lib/domain/queues";
 import { filtered } from "@/lib/domain/report";
@@ -17,7 +21,7 @@ const DESCRIPTION = "สรุปตำแหน่งว่าง Offer แล�
 async function DashboardContent() {
   const user = await getSessionUser();
   const repo = getRepo();
-  const [requisitions, offers, log, branches, positions, users, settingRows, approvals, turndowns, newHires] = await Promise.all([
+  const [requisitions, offers, log, branches, positions, users, settingRows, approvals, turndowns, newHires, quota, resign] = await Promise.all([
     repo.list("Requisitions"),
     repo.list("Offers"),
     repo.list("StatusLog"),
@@ -28,6 +32,8 @@ async function DashboardContent() {
     repo.list("Approvals"),
     repo.list("Turndowns"),
     repo.list("NewHires"),
+    repo.list("Quota"),
+    repo.listNumbered("Import_Resign"),
   ]);
 
   const today = todayBangkok();
@@ -40,6 +46,7 @@ async function DashboardContent() {
     type: a.type,
     region: a.region,
     province: a.province,
+    bu: a.bu,
     branchName: a.branchName,
     positionName: a.positionName,
     by: a.requestedBy,
@@ -49,6 +56,7 @@ async function DashboardContent() {
     id: h.reqId,
     region: h.region,
     province: h.province,
+    bu: h.bu,
     branchName: h.branchName,
     positionName: h.positionName,
     taName: h.taName,
@@ -58,14 +66,14 @@ async function DashboardContent() {
   const reqs = filtered({ requisitions, log, branches, positions, users, settings }, user, {});
   const trend = buildTrend({ requisitions, log, branches, positions, users, settings, offers: [...newHires, ...turndowns, ...offers] }, reqs, today, 12);
 
-  // Hired this month, as the region of each hire so the region tabs can filter it too.
+  // Hired this month, as the region and BU of each hire so the filters apply to it too.
   const month = today.slice(0, 7);
   const branchByCode = new Map(branches.map((b) => [b.branch_code, b]));
   const hiredRegions = requisitions
     .filter((r) => r.status === "Hired" && r.closed_at?.startsWith(month))
     .flatMap((r) => {
       const b = branchByCode.get(r.branch_code);
-      return b && inScope(user, b) ? [b.region || "ไม่ระบุ"] : [];
+      return b && inScope(user, b) ? [{ region: b.region || "ไม่ระบุ", bu: buOf(b) }] : [];
     });
 
   const turndownRegions = turndowns
@@ -73,8 +81,13 @@ async function DashboardContent() {
     .flatMap((t) => {
       const r = requisitions.find((x) => x.id === t.req_id);
       const b = r && branchByCode.get(r.branch_code);
-      return b && inScope(user, b) ? [b.region || "ไม่ระบุ"] : [];
+      return b && inScope(user, b) ? [{ region: b.region || "ไม่ระบุ", bu: buOf(b) }] : [];
     });
+
+  // Looking ahead: resignations still to take effect, HR shortages with no requisition behind them, and how Offers fared.
+  const resigns = upcomingResignations(buildResignRows({ resign, requisitions, branches, positions, users }, user, today));
+  const manpower = buildManpowerRows({ quota, requisitions, branches, positions }, user, today).rows;
+  const outcomes = offerOutcomes({ offers, newHires, turndowns, requisitions, branches }, user, today);
 
   return (
     <DashboardView
@@ -84,6 +97,10 @@ async function DashboardContent() {
       trend={trend}
       approvals={approvalRows}
       holds={holdRows}
+      resigns={resigns}
+      gaps={manpowerGaps(manpower)}
+      hasQuota={manpower.length > 0}
+      outcomes={outcomes}
       today={today}
       isAdmin={user.role === "super_admin"}
       title={TITLE}

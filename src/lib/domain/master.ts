@@ -71,6 +71,7 @@ export function validateMaster(entity: MasterEntity, input: FormInput, ctx: Mast
         branch_code: code,
         branch_name: text(input.branch_name),
         brand: text(input.brand),
+        bu: text(input.bu),
         province: text(input.province),
         region: text(input.region),
         status,

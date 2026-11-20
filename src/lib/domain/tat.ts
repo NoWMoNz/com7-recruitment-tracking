@@ -1,4 +1,5 @@
 import { daysBetween } from "./dates";
+import { entriesOf } from "./log-index";
 import type { LocalDate, StatusLogEntry } from "./types";
 
 export type TatResult = "Meet" | "NotMeet" | "InProgress";
@@ -10,9 +11,7 @@ function minDate(a: LocalDate, b: LocalDate): LocalDate {
 
 /** Total days a requisition spent in Hold, counting only time up to `asOf`. */
 export function holdDays(log: StatusLogEntry[], reqId: string, asOf: LocalDate): number {
-  const entries = log
-    .filter((e) => e.req_id === reqId)
-    .sort((a, b) => a.effective_date.localeCompare(b.effective_date) || a.at.localeCompare(b.at));
+  const entries = entriesOf(log, reqId);
   let total = 0;
   let openedAt: LocalDate | null = null;
   const close = (end: LocalDate) => {

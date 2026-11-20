@@ -21,8 +21,8 @@ export function ReportFilters({ params, options }: { params: Params; options: Fi
   const go = (patch: Params) => start(() => router.replace(`${pathname}?${reportQuery(params, patch)}`, { scroll: false }));
 
   const provinces = options.provinces.filter((p) => !params.region || p.region === params.region);
-  const branches = options.branches.filter((b) => (!params.region || b.region === params.region) && (!params.province || b.province === params.province));
-  const hasFilter = Boolean(params.region || params.province || params.branch || params.position || params.ta);
+  const branches = options.branches.filter((b) => (!params.bu || b.bu === params.bu) && (!params.region || b.region === params.region) && (!params.province || b.province === params.province));
+  const hasFilter = Boolean(params.bu || params.region || params.province || params.branch || params.position || params.ta);
   const exportHref = `/api/export?${reportQuery(params)}`;
 
   return (
@@ -42,6 +42,8 @@ export function ReportFilters({ params, options }: { params: Params; options: Fi
         </>
       )}
 
+      <label className="sr-only" htmlFor="rep-bu">BU</label>
+      <Dropdown id="rep-bu" variant="pill" value={params.bu ?? ""} onChange={(v) => go({ bu: v, branch: undefined })} emptyLabel="ทุก BU" options={options.bus.map((b) => ({ value: b, label: b }))} className="w-36" />
       <label className="sr-only" htmlFor="rep-region">ภาค</label>
       <Dropdown id="rep-region" variant="pill" value={params.region ?? ""} onChange={(v) => go({ region: v, province: undefined, branch: undefined })} emptyLabel="ทุกภาค" options={options.regions.map((r) => ({ value: r, label: r }))} className="w-36" />
       <label className="sr-only" htmlFor="rep-province">จังหวัด</label>
@@ -53,7 +55,7 @@ export function ReportFilters({ params, options }: { params: Params; options: Fi
       <label className="sr-only" htmlFor="rep-ta">TA</label>
       <Dropdown id="rep-ta" variant="pill" value={params.ta ?? ""} onChange={(v) => go({ ta: v })} emptyLabel="ทุก TA" options={options.tas.map((t) => ({ value: t.value, label: t.label }))} className="w-36" />
       {hasFilter && (
-        <button type="button" onClick={() => go({ region: undefined, province: undefined, branch: undefined, position: undefined, ta: undefined })} className="inline-flex h-10 items-center gap-1.5 rounded-full px-3 text-sm text-muted-foreground hover:bg-muted">
+        <button type="button" onClick={() => go({ bu: undefined, region: undefined, province: undefined, branch: undefined, position: undefined, ta: undefined })} className="inline-flex h-10 items-center gap-1.5 rounded-full px-3 text-sm text-muted-foreground hover:bg-muted">
           <RotateCcw className="size-3.5" aria-hidden />
           ล้างตัวกรอง
         </button>

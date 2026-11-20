@@ -18,6 +18,8 @@ export class MemoryRepo implements Repo {
     return this.tabs.get(tab)!;
   }
 
+  async requireColumns(): Promise<void> {}
+
   async list<T extends TabName>(tab: T): Promise<RowOf<T>[]> {
     return structuredClone(this.rows(tab)) as RowOf<T>[];
   }

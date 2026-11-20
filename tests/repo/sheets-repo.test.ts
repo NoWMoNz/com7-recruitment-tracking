@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, test } from "vitest";
 import { SheetsRepo, type SheetsValuesApi } from "@/lib/repo/sheets-repo";
-import { ConflictError, NotFoundError } from "@/lib/repo/types";
+import { ConflictError, MissingColumnError, NotFoundError } from "@/lib/repo/types";
 import { TABS } from "@/lib/sheets/schema";
 
 const header = TABS.Requisitions.columns.map((c) => c.key);
@@ -158,5 +158,30 @@ describe("SheetsRepo batch writes", () => {
     expect(api.batches[0][0].range).toBe("Requisitions!A4");
     expect(api.batches[0][0].values[0][header.indexOf("source_ref")]).toBe("x");
     expect(api.batches[0][0].values[0][header.indexOf("version")]).toBe(2);
+  });
+});
+
+describe("SheetsRepo with an old header (a column added since the sheet was set up)", () => {
+  const oldHeader = TABS.Import_Resign.columns.map((c) => c.key).filter((k) => !k.startsWith("cancel"));
+  const resignRow = ["E100", "นาย", "ก", "ข", "BKK-012", "SALES", 46346, "2026-11-17T17:30:00Z"];
+
+  beforeEach(() => {
+    api.tabs.Import_Resign = [oldHeader, resignRow];
+  });
+
+  test("updateAt refuses a patch that names a missing column and writes nothing", async () => {
+    await expect(repo.updateAt("Import_Resign", [{ rowNumber: 2, patch: { cancelled_at: "2026-11-20T03:00:00Z" } }])).rejects.toBeInstanceOf(MissingColumnError);
+    await expect(repo.updateAt("Import_Resign", [{ rowNumber: 2, patch: { cancelled_at: "x" } }])).rejects.toThrow(/cancelled_at.*pnpm sheet:setup/);
+    expect(api.batches).toEqual([]);
+  });
+
+  test("a patch that only names columns the sheet has still works", async () => {
+    await repo.updateAt("Import_Resign", [{ rowNumber: 2, patch: { processed_at: "later" } }]);
+    expect(api.batches[0][0].values[0][oldHeader.indexOf("processed_at")]).toBe("later");
+  });
+
+  test("requireColumns passes for present columns and names the missing ones", async () => {
+    await expect(repo.requireColumns("Import_Resign", ["processed_at"])).resolves.toBeUndefined();
+    await expect(repo.requireColumns("Import_Resign", ["cancelled_at", "cancel_note"])).rejects.toThrow(/cancelled_at, cancel_note/);
   });
 });

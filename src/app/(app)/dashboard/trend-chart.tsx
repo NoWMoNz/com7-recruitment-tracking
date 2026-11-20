@@ -50,7 +50,7 @@ function change(v: number, prev: number | undefined) {
  * Monthly trend as smooth lines. Point the chart at a month to see every figure for it; hover a legend item to follow
  * one line, click it to hide or show it. The last stretch is dashed because the current month is not over yet.
  */
-export function TrendChart({ trend, region, onNote }: { trend: TrendMonth[]; region: string; onNote?: NoteFn }) {
+export function TrendChart({ trend, region, bu = "", onNote }: { trend: TrendMonth[]; region: string; bu?: string; onNote?: NoteFn }) {
   const uid = useId().replace(/:/g, "");
   const [box, width] = useWidth();
   const [range, setRange] = useState<(typeof RANGES)[number]>(6);
@@ -59,7 +59,7 @@ export function TrendChart({ trend, region, onNote }: { trend: TrendMonth[]; reg
   // Where the pointer is on the chart, in px. The marker follows it freely; `at` is the month it is closest to.
   const [cursor, setCursor] = useState<number | null>(null);
 
-  const points: TrendPoint[] = useMemo(() => sumTrend(trend, region).slice(-range), [trend, region, range]);
+  const points: TrendPoint[] = useMemo(() => sumTrend(trend, region, bu).slice(-range), [trend, region, bu, range]);
   const shown = SERIES.filter((s) => !hidden.has(s.key));
   const n = points.length;
   const { top, ticks } = useMemo(() => countAxis(Math.max(0, ...points.flatMap((p) => shown.map((s) => p[s.key])))), [points, shown]);
@@ -125,7 +125,7 @@ export function TrendChart({ trend, region, onNote }: { trend: TrendMonth[]; reg
           <h2 id="trk-trend-title" className="font-heading text-lg font-medium">
             แนวโน้มการสรรหา
           </h2>
-          <p className="text-xs text-muted-foreground">{region || "ทุกภาค"} · รายเดือน</p>
+          <p className="text-xs text-muted-foreground">{[region || "ทุกภาค", bu].filter(Boolean).join(" · ")} · รายเดือน</p>
         </div>
         <div role="group" aria-label="ช่วงเวลา" className="inline-flex gap-1 rounded-full bg-muted p-1">
           {RANGES.map((r) => (

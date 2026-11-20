@@ -2,7 +2,7 @@ import { addDays, daysBetween, formatThaiDate } from "./dates";
 import { inScope, normalizeEmail } from "./permissions";
 import { slaFor, type AppSettings } from "./settings";
 import { computeTat, holdDays } from "./tat";
-import type { Branch, LocalDate, MonthlySnapshot, NewHire, Offer, Position, Requisition, Status, StatusLogEntry, Turndown, User } from "./types";
+import { buOf, type Branch, type LocalDate, type MonthlySnapshot, type NewHire, type Offer, type Position, type Requisition, type Status, type StatusLogEntry, type Turndown, type User } from "./types";
 
 /** Statuses that count as "Vacancy คงเหลือ" (open): not closed and not on Hold. */
 export const OPEN_STATUSES: readonly Status[] = ["Vacancy", "Offer", "PendingCancel", "PendingHold"];
@@ -19,6 +19,8 @@ export interface ReportData {
 }
 
 export interface ReportFilter {
+  /** Business unit (Group ใหญ่). */
+  bu?: string;
   region?: string;
   province?: string;
   branch?: string;
@@ -81,7 +83,12 @@ export function periodText(r: PeriodRange): string {
 
 type LogIndex = Map<string, StatusLogEntry[]>;
 
+const indexCache = new WeakMap<readonly StatusLogEntry[], { length: number; index: LogIndex }>();
+
+/** Status changes per requisition, oldest first. Built once per log array (the dashboard asks for it 70+ times). */
 export function indexLog(log: StatusLogEntry[]): LogIndex {
+  const hit = indexCache.get(log);
+  if (hit && hit.length === log.length) return hit.index;
   const byReq: LogIndex = new Map();
   for (const e of log) {
     if (!STATUSES.has(e.to_status)) continue; // creation rows ("") and OwnerChange don't change status
@@ -89,6 +96,7 @@ export function indexLog(log: StatusLogEntry[]): LogIndex {
     byReq.get(e.req_id)!.push(e);
   }
   for (const list of byReq.values()) list.sort((a, b) => a.effective_date.localeCompare(b.effective_date) || a.at.localeCompare(b.at));
+  indexCache.set(log, { length: log.length, index: byReq });
   return byReq;
 }
 
@@ -134,6 +142,7 @@ export function filtered(d: ReportData, viewer: User, f: ReportFilter): Requisit
   return d.requisitions.filter((r) => {
     const b = branches.get(r.branch_code);
     if (!inScope(viewer, b ?? { region: "ไม่ระบุ", branch_code: r.branch_code })) return false;
+    if (f.bu && buOf(b) !== f.bu) return false;
     if (f.region && (b?.region || "ไม่ระบุ") !== f.region) return false;
     if (f.province && b?.province !== f.province) return false;
     if (f.branch && r.branch_code !== f.branch) return false;

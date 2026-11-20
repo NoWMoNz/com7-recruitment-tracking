@@ -22,7 +22,7 @@ import {
   type TurndownRow,
 } from "@/lib/domain/report";
 import { parseSettings } from "@/lib/domain/settings";
-import type { LocalDate, User } from "@/lib/domain/types";
+import { buOf, type LocalDate, type User } from "@/lib/domain/types";
 import { getRepo } from "@/lib/repo";
 
 export const REPORT_TABS = ["monthly", "weekly", "turndowns", "history"] as const;
@@ -48,13 +48,14 @@ export function parseReportParams(sp: Raw, today: LocalDate = todayBangkok()): R
     { from: parseUserDate(one(sp.from) ?? "") ?? undefined, to: parseUserDate(one(sp.to) ?? "") ?? undefined, all: one(sp.all) === "1" },
     monthRange(month),
   );
-  return { tab, range, region: one(sp.region), province: one(sp.province), branch: one(sp.branch), position: one(sp.position), ta: one(sp.ta) };
+  return { tab, range, bu: one(sp.bu), region: one(sp.region), province: one(sp.province), branch: one(sp.branch), position: one(sp.position), ta: one(sp.ta) };
 }
 
 export interface FilterOptions {
+  bus: string[];
   regions: string[];
   provinces: { value: string; region: string }[];
-  branches: { value: string; label: string; region: string; province: string }[];
+  branches: { value: string; label: string; bu: string; region: string; province: string }[];
   positions: { value: string; label: string }[];
   tas: { value: string; label: string }[];
 }
@@ -110,9 +111,10 @@ export async function loadReport(viewer: User, params: ReportParams): Promise<Re
   // Filter choices, limited to what the viewer may see.
   const visibleBranches = branches.filter((b) => inScope(viewer, b));
   const options: FilterOptions = {
+    bus: [...new Set(visibleBranches.map(buOf))].sort((a, b) => a.localeCompare(b, "th")),
     regions: [...new Set(visibleBranches.map((b) => b.region || "ไม่ระบุ"))].sort((a, b) => a.localeCompare(b, "th")),
     provinces: [...new Map(visibleBranches.filter((b) => b.province).map((b) => [b.province, { value: b.province, region: b.region }])).values()].sort((a, b) => a.value.localeCompare(b.value, "th")),
-    branches: visibleBranches.map((b) => ({ value: b.branch_code, label: `${b.branch_name} (${b.branch_code})`, region: b.region, province: b.province })).sort((a, b) => a.label.localeCompare(b.label, "th")),
+    branches: visibleBranches.map((b) => ({ value: b.branch_code, label: `${b.branch_name} (${b.branch_code})`, bu: buOf(b), region: b.region, province: b.province })).sort((a, b) => a.label.localeCompare(b.label, "th")),
     positions: positions.map((p) => ({ value: p.position_code, label: p.position_name })).sort((a, b) => a.label.localeCompare(b.label, "th")),
     tas: [...new Set(requisitions.filter((r) => r.ta_email && branchBy.get(r.branch_code) && inScope(viewer, branchBy.get(r.branch_code)!)).map((r) => normalizeEmail(r.ta_email)))]
       .map((e) => ({ value: e, label: nameOf(e) }))
@@ -122,7 +124,7 @@ export async function loadReport(viewer: User, params: ReportParams): Promise<Re
   // Monthly: closed months come from the snapshot when the filter is one a snapshot can answer.
   const regionNames = new Set(branches.map((b) => b.region));
   const scopeTokens = viewer.scope.split(",").map((t) => t.trim()).filter(Boolean);
-  const snapshotFits = !params.province && !params.branch && !params.position && scopeTokens.every((t) => regionNames.has(t));
+  const snapshotFits = !params.bu && !params.province && !params.branch && !params.position && scopeTokens.every((t) => regionNames.has(t));
   // A snapshot answers only a whole month that is already over.
   const month = wholeMonth(params.range);
   const closed = month !== null && month < monthOf(today);

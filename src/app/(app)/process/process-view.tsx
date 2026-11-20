@@ -35,11 +35,13 @@ const REVIEW_LABEL: Record<ReviewType, string> = {
   UnmatchedHire: "รอจับคู่พนักงานใหม่",
   TransferNoReq: "โอนเข้าแต่ไม่มีตำแหน่งว่าง",
   OfferAtClosedStore: "ร้านปิดแต่มีคน Offer",
+  ResignWithdrawn: "ยกเลิกลาออกแต่ตำแหน่งยังเปิดอยู่",
 };
 const REVIEW_HINT: Record<ReviewType, string> = {
   UnmatchedHire: "เลือกคน Offer ที่ตรงกับพนักงานคนนี้ ระบบจะเปลี่ยนเป็น Hired และย้ายไปแท็บ NewHires",
   TransferNoReq: "ตรวจข้อมูลโอนย้าย ถ้าต้องสร้างตำแหน่งให้เพิ่มในแท็บ Import_Requisition แล้วกดตรวจแล้ว",
   OfferAtClosedStore: "ตัดสินใจกับคนที่ Offer ไว้ (เช่น บันทึก Turndown ในหน้าติดตาม) แล้วกดตรวจแล้ว",
+  ResignWithdrawn: "ตัดสินใจกับตำแหน่งนี้ (เช่น คนที่ Offer ไว้) แล้วกดตรวจแล้ว",
 };
 
 const CARD = "rounded-3xl bg-white shadow-[0_1px_2px_rgba(0,0,0,0.04),0_8px_30px_rgba(0,0,0,0.05)] ring-1 ring-black/5";

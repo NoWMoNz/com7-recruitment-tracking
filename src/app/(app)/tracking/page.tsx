@@ -11,7 +11,7 @@ import { TrackingView } from "./tracking-view";
 
 const BAND_VALUES = ["green", "orange", "red", "darkred"] as const;
 
-async function TrackingContent({ searchParams }: { searchParams: Promise<{ mine?: string; band?: string; q?: string }> }) {
+async function TrackingContent({ searchParams }: { searchParams: Promise<{ mine?: string; band?: string; q?: string; bu?: string }> }) {
   const [user, params] = await Promise.all([getSessionUser(), searchParams]);
   const repo = getRepo();
   const [requisitions, offers, log, branches, positions, users, settingRows, channelRows] = await Promise.all([
@@ -48,11 +48,12 @@ async function TrackingContent({ searchParams }: { searchParams: Promise<{ mine?
   const initialBand = BAND_VALUES.find((b) => b === params.band) ?? null;
 
   const initialQ = (params.q ?? "").slice(0, 80);
+  const initialBu = (params.bu ?? "").slice(0, 60);
 
   // Keyed by the preset so a link from the dashboard replaces the filters instead of keeping the old ones.
   return (
     <TrackingView
-      key={`${initialBand ?? ""}|${initialQ}|${mineOnly}`}
+      key={`${initialBand ?? ""}|${initialQ}|${initialBu}|${mineOnly}`}
       rows={rows}
       today={today}
       mineOnly={mineOnly}
@@ -60,6 +61,7 @@ async function TrackingContent({ searchParams }: { searchParams: Promise<{ mine?
       editContext={editContext}
       initialBand={initialBand}
       initialQ={initialQ}
+      initialBu={initialBu}
     />
   );
 }
@@ -74,7 +76,7 @@ function TrackingSkeleton() {
   );
 }
 
-export default function TrackingPage({ searchParams }: { searchParams: Promise<{ mine?: string; band?: string; q?: string }> }) {
+export default function TrackingPage({ searchParams }: { searchParams: Promise<{ mine?: string; band?: string; q?: string; bu?: string }> }) {
   return (
     <Suspense fallback={<TrackingSkeleton />}>
       <TrackingContent searchParams={searchParams} />

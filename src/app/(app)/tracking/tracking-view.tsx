@@ -23,6 +23,8 @@ interface Props {
   initialBand?: AgingBand | null;
   /** Search text preset from the URL (links from the dashboard). */
   initialQ?: string;
+  /** Business unit preset from the URL (links from the dashboard). */
+  initialBu?: string;
 }
 
 interface BranchGroup {
@@ -108,9 +110,10 @@ function StatusCell({ row, onOpen, isAdmin }: { row: TrackingRow; onOpen: (t: Di
   );
 }
 
-export function TrackingView({ rows, mineOnly, canFilterMine, editContext, initialBand = null, initialQ = "" }: Props) {
+export function TrackingView({ rows, mineOnly, canFilterMine, editContext, initialBand = null, initialQ = "", initialBu = "" }: Props) {
   const [target, setTarget] = useState<DialogTarget>(null);
   const [region, setRegion] = useState("");
+  const [bu, setBu] = useState(initialBu);
   const [status, setStatus] = useState<StatusFilter>("");
   const [q, setQ] = useState(initialQ);
   const [band, setBand] = useState<AgingBand | null>(initialBand);
@@ -119,8 +122,9 @@ export function TrackingView({ rows, mineOnly, canFilterMine, editContext, initi
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
 
   const regions = useMemo(() => [...new Set(rows.map((r) => r.region))], [rows]);
+  const bus = useMemo(() => [...new Set(rows.map((r) => r.bu))].sort((a, b) => a.localeCompare(b, "th")), [rows]);
   // Band counts come from rows before the band filter so the chips stay stable while you pick one.
-  const base = useMemo(() => rows.filter((r) => (!region || r.region === region) && matchesStatus(r, status) && matches(r, q.trim()) && (!range || (r.requestDate >= range.from && r.requestDate <= range.to))), [rows, region, status, q, range]);
+  const base = useMemo(() => rows.filter((r) => (!bu || r.bu === bu) && (!region || r.region === region) && matchesStatus(r, status) && matches(r, q.trim()) && (!range || (r.requestDate >= range.from && r.requestDate <= range.to))), [rows, bu, region, status, q, range]);
   const filtered = useMemo(() => (band ? base.filter((r) => r.agingBand === band) : base), [base, band]);
   const groups = useMemo(() => groupByBranch(filtered), [filtered]);
 
@@ -130,9 +134,10 @@ export function TrackingView({ rows, mineOnly, canFilterMine, editContext, initi
   const avgAging = openNow.length ? Math.round(openNow.reduce((s, r) => s + r.tat, 0) / openNow.length) : null;
   const bandCount = (b: AgingBand) => base.filter((r) => r.agingBand === b).length;
 
-  const hasFilter = region !== "" || status !== "" || q !== "" || band !== null || range !== null;
+  const hasFilter = bu !== "" || region !== "" || status !== "" || q !== "" || band !== null || range !== null;
   const clearFilters = () => {
     setRegion("");
+    setBu("");
     setStatus("");
     setQ("");
     setBand(null);
@@ -198,6 +203,10 @@ export function TrackingView({ rows, mineOnly, canFilterMine, editContext, initi
               className={cn(SELECT, "w-full pl-10 placeholder:text-muted-foreground")}
             />
           </div>
+          <label className="sr-only" htmlFor="trk-bu">
+            BU
+          </label>
+          <Dropdown id="trk-bu" variant="pill" value={bu} onChange={setBu} emptyLabel="ทุก BU" options={bus.map((b) => ({ value: b, label: b }))} className="w-36" />
           <label className="sr-only" htmlFor="trk-region">
             ภาค
           </label>

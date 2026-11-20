@@ -265,6 +265,7 @@ async function ReportsContent({ searchParams }: { searchParams: Promise<Record<s
   const { range } = params;
   const flat: Record<string, string | undefined> = {
     tab: params.tab,
+    bu: params.bu,
     region: params.region,
     province: params.province,
     branch: params.branch,

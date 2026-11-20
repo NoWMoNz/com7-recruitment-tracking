@@ -1,8 +1,8 @@
 import { Suspense } from "react";
 import Link from "next/link";
-import { LogOut } from "lucide-react";
 import { Com7Logo } from "@/components/com7-logo";
-import { RAIL_LABEL, SidebarNav } from "@/components/sidebar-nav";
+import { LogoutIcon, PRESS } from "@/components/pending";
+import { RAIL_LABEL, SectionTabs, SidebarNav } from "@/components/sidebar-nav";
 import { getSessionUser } from "@/lib/auth/session-user";
 import { getRepo } from "@/lib/repo";
 import { cn } from "@/lib/utils";
@@ -19,7 +19,8 @@ function LogoutButton({ className, rail = false }: { className?: string; rail?: 
         aria-label="ออกจากระบบ"
         title="ออกจากระบบ"
         className={cn(
-          "rounded-full bg-white/80 text-foreground ring-1 ring-black/[0.05] transition-colors outline-none hover:bg-white focus-visible:ring-3 focus-visible:ring-ring/50",
+          "group/logout rounded-full bg-white/80 text-foreground ring-1 ring-black/[0.05] outline-none hover:bg-white hover:shadow-[0_8px_20px_-8px_rgba(0,0,0,0.25)] focus-visible:ring-3 focus-visible:ring-ring/50",
+          PRESS,
           rail ? "flex h-10 w-full items-center gap-3 overflow-hidden pr-4" : "grid size-10 place-items-center",
           className,
         )}
@@ -27,12 +28,12 @@ function LogoutButton({ className, rail = false }: { className?: string; rail?: 
         {rail ? (
           <>
             <span className="grid size-10 shrink-0 place-items-center">
-              <LogOut className="size-4" aria-hidden />
+              <LogoutIcon />
             </span>
             <span className={RAIL_LABEL}>ออกจากระบบ</span>
           </>
         ) : (
-          <LogOut className="size-4" aria-hidden />
+          <LogoutIcon />
         )}
       </button>
     </form>
@@ -119,6 +120,7 @@ export default function AppLayout({ children }: LayoutProps<"/">) {
             <TopUser />
           </Suspense>
         </header>
+        <SectionTabs />
         <main className="flex-1">{children}</main>
       </div>
     </div>

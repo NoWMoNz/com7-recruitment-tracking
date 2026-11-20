@@ -6,25 +6,33 @@ import { ArrowDown, ArrowUp, Briefcase, Download, Gauge, Map as MapIcon, MapPin,
 import { BAND_CLASS, BAND_LABEL } from "@/components/aging-badge";
 import { PageHeader } from "@/components/page-header";
 import { DateRangePicker, type DateRangeValue } from "@/components/ui/date-range-picker";
+import { Dropdown } from "@/components/ui/dropdown";
 import { longestOpen, momentum, nearSla, offersWaiting, provinceStats, statsOf, summarize, sumTrend, type RowStats, type TrendMonth } from "@/lib/domain/dashboard";
+import type { ManpowerGap, OfferOutcome, UpcomingResign } from "@/lib/domain/outlook";
 import type { AgingBand } from "@/lib/domain/tat";
 import type { TrackingRow } from "@/lib/domain/tracking";
 import { cn } from "@/lib/utils";
 import { normalizeProvince } from "@/lib/geo/province";
 import { TrendChart } from "./trend-chart";
 import { ThailandMap } from "./thailand-map";
-import { ActionTiles, AttentionCard, GroupCard, type ApprovalItem, type AttentionTab, type HoldItem } from "./dashboard-sections";
+import { ActionTiles, AttentionCard, GroupCard, OutlookTiles, type ApprovalItem, type AttentionTab, type HoldItem } from "./dashboard-sections";
 import { BANDS, BAND_DOT, StatsTip, trackingHref, type NoteFn, type SpotFn, type SummaryNote } from "./dashboard-tips";
-import { CARD, GLASS, IconChip, Pills, ROW, SPOT, SPOT_BAR, SPOT_BAR_GROUP, SPOT_GROUP, SmoothHeight, StackBar, SWELL, useSettle } from "./dashboard-ui";
+import { CARD, GLASS, IconChip, ROW, SPOT, SPOT_BAR, SPOT_BAR_GROUP, SPOT_GROUP, SmoothHeight, StackBar, SWELL, useSettle } from "./dashboard-ui";
 import { TipNote, TipProvider, TipRow, TipTitle, useTip } from "./hover-tip";
 
 interface Props {
   rows: TrackingRow[];
-  hiredRegions: string[];
-  turndownRegions: string[];
+  /** Region and BU of each hire / turndown this month. */
+  hiredRegions: { region: string; bu: string }[];
+  turndownRegions: { region: string; bu: string }[];
   trend: TrendMonth[];
   approvals: ApprovalItem[];
   holds: HoldItem[];
+  /** Resignations still to take effect, HR shortages no requisition covers, and the Offers of the last 90 days. */
+  resigns: UpcomingResign[];
+  gaps: ManpowerGap[];
+  hasQuota: boolean;
+  outcomes: OfferOutcome[];
   today: string;
   isAdmin: boolean;
   title: string;
@@ -53,8 +61,8 @@ function HalfGauge({ pct, tat }: { pct: number | null; tat: { meet: number; notM
       <svg viewBox="0 0 160 88" className="w-full" role="img" aria-label={pct === null ? "ยังไม่มีข้อมูล TAT" : `TAT Meet ${pct}%`}>
         <defs>
           <linearGradient id="gauge-fill" x1="0" x2="1">
-            <stop offset="0" stopColor="#f6f1a0" />
-            <stop offset="1" stopColor="#e6d52c" />
+            <stop offset="0" stopColor="#8fd07b" />
+            <stop offset="1" stopColor="#2a8638" />
           </linearGradient>
         </defs>
         <path d={arc} pathLength={100} fill="none" stroke="rgba(0,0,0,0.07)" strokeWidth={14} strokeLinecap="round" />
@@ -197,12 +205,18 @@ export function DashboardView(props: Props) {
   );
 }
 
-function DashboardBody({ rows: allRows, hiredRegions, turndownRegions, trend, approvals, holds, today, isAdmin, title, description }: Props) {
+function DashboardBody({ rows: allRows, hiredRegions, turndownRegions, trend, approvals, holds, resigns, gaps, hasQuota, outcomes, today, isAdmin, title, description }: Props) {
   const { bind } = useTip();
   const [region, setRegion] = useState("");
   // Request date (วันที่แจ้งสรรหา); null = every date. Everything below counts only the positions requested in it.
   const [range, setRange] = useState<DateRangeValue>(null);
-  const rows = useMemo(() => (range ? allRows.filter((r) => r.requestDate >= range.from && r.requestDate <= range.to) : allRows), [allRows, range]);
+  // Business unit (Group ใหญ่); "" = every BU. Like the date range, it narrows every card on the page.
+  const [bu, setBu] = useState("");
+  const buNames = useMemo(() => [...new Set(allRows.map((r) => r.bu))].sort((a, b) => a.localeCompare(b, "th")), [allRows]);
+  const rows = useMemo(
+    () => allRows.filter((r) => (!bu || r.bu === bu) && (!range || (r.requestDate >= range.from && r.requestDate <= range.to))),
+    [allRows, bu, range],
+  );
 
   const regionNames = useMemo(() => [...new Set(allRows.map((r) => r.region))], [allRows]);
   const [province, setProvince] = useState<string | null>(null);
@@ -216,8 +230,9 @@ function DashboardBody({ rows: allRows, hiredRegions, turndownRegions, trend, ap
   const scoped = useMemo(() => (province ? inRegion.filter((r) => normalizeProvince(r.province) === province) : inRegion), [inRegion, province]);
   const s = useMemo(() => summarize(scoped), [scoped]);
   // This month against last. The trend is kept per region, so a picked province has no figures of its own.
-  const mo = useMemo(() => momentum(sumTrend(trend, region)), [trend, region]);
-  const hired = province ? 0 : region ? hiredRegions.filter((r) => r === region).length : hiredRegions.length;
+  const mo = useMemo(() => momentum(sumTrend(trend, region, bu)), [trend, region, bu]);
+  const thisMonth = (x: { region: string; bu: string }) => (!region || x.region === region) && (!bu || x.bu === bu);
+  const hired = province ? 0 : hiredRegions.filter(thisMonth).length;
   const [attention, setAttention] = useState<AttentionTab>("longest");
   // Provinces another card is pointing at; the map lights them and dims the rest.
   const [spot, setSpot] = useState<ReadonlySet<string> | null>(null);
@@ -226,15 +241,18 @@ function DashboardBody({ rows: allRows, hiredRegions, turndownRegions, trend, ap
   const [note, setNote] = useState<SummaryNote | null>(null);
   const [focus, setFocus] = useState<{ match: (r: TrackingRow) => boolean; label: string } | null>(null);
 
-  const inView = (x: { region: string; province: string }) => (!region || x.region === region) && (!province || normalizeProvince(x.province) === province);
-  const scopedApprovals = useMemo(() => approvals.filter(inView), [approvals, region, province]); // eslint-disable-line react-hooks/exhaustive-deps
-  const scopedHolds = useMemo(() => holds.filter(inView), [holds, region, province]); // eslint-disable-line react-hooks/exhaustive-deps
+  const inView = (x: { region: string; province: string; bu: string }) => (!bu || x.bu === bu) && (!region || x.region === region) && (!province || normalizeProvince(x.province) === province);
+  const scopedApprovals = useMemo(() => approvals.filter(inView), [approvals, region, province, bu]); // eslint-disable-line react-hooks/exhaustive-deps
+  const scopedHolds = useMemo(() => holds.filter(inView), [holds, region, province, bu]); // eslint-disable-line react-hooks/exhaustive-deps
+  const scopedResigns = useMemo(() => resigns.filter(inView), [resigns, region, province, bu]); // eslint-disable-line react-hooks/exhaustive-deps
+  const scopedGaps = useMemo(() => gaps.filter(inView), [gaps, region, province, bu]); // eslint-disable-line react-hooks/exhaustive-deps
+  const scopedOutcomes = useMemo(() => outcomes.filter(inView), [outcomes, region, province, bu]); // eslint-disable-line react-hooks/exhaustive-deps
   const longestAll = useMemo(() => longestOpen(scoped, Infinity), [scoped]);
   const nearAll = useMemo(() => nearSla(scoped, undefined, Infinity), [scoped]);
   const waitingAll = useMemo(() => offersWaiting(scoped, today, Infinity), [scoped, today]);
   const pStats = useMemo(() => provinceStats(inRegion), [inRegion]);
-  const turndowns = region ? turndownRegions.filter((r) => r === region).length : turndownRegions.length;
-  const exportHref = `/api/export?tab=monthly${region ? `&region=${encodeURIComponent(region)}` : ""}`;
+  const turndowns = turndownRegions.filter(thisMonth).length;
+  const exportHref = `/api/export?tab=monthly${region ? `&region=${encodeURIComponent(region)}` : ""}${bu ? `&bu=${encodeURIComponent(bu)}` : ""}`;
   // Moving from one item to the next must not flash the overview in between: clearing waits a moment and is cancelled by the next hover.
   const settle = useSettle();
   const spotRows = useCallback<SpotFn>(
@@ -332,15 +350,25 @@ function DashboardBody({ rows: allRows, hiredRegions, turndownRegions, trend, ap
           }
         />
         <div className="flex flex-wrap items-center gap-2">
-          <Pills
-            label="กรองตามภาค"
+          <label className="sr-only" htmlFor="dash-region">
+            ภาค
+          </label>
+          <Dropdown
+            id="dash-region"
+            variant="pill"
             value={region}
             onChange={(r) => {
               setRegion(r);
               setProvince(null);
             }}
-            options={[{ value: "", label: "ทุกภาค" }, ...regionNames.map((r) => ({ value: r, label: r }))]}
+            emptyLabel="ทุกภาค"
+            options={regionNames.map((r) => ({ value: r, label: r }))}
+            className="w-44"
           />
+          <label className="sr-only" htmlFor="dash-bu">
+            BU
+          </label>
+          <Dropdown id="dash-bu" variant="pill" value={bu} onChange={setBu} emptyLabel="ทุก BU" options={buNames.map((b) => ({ value: b, label: b }))} className="w-36" />
           <DateRangePicker id="dash-range" allowAll allLabel="ทุกวันที่แจ้งสรรหา" value={range} onChange={setRange} aria-label="วันที่แจ้งสรรหา" className="w-64" />
         </div>
         <div className="grid gap-4 lg:grid-cols-[21rem_minmax(0,1fr)]">
@@ -369,7 +397,7 @@ function DashboardBody({ rows: allRows, hiredRegions, turndownRegions, trend, ap
                     </>
                   ) : (
                     <>
-                      <p className="text-sm text-foreground/65">{focus?.label ?? (province ? `จังหวัด${province}` : region || "ทุกภาค")}</p>
+                      <p className="text-sm text-foreground/65">{focus?.label ?? [province ? `จังหวัด${province}` : region || "ทุกภาค", bu].filter(Boolean).join(" · ")}</p>
                       <p className="mt-1 font-heading text-[5.5rem] leading-none font-extralight tracking-tight tabular-nums">{view.open}</p>
                       <p className="mt-2 text-base text-foreground/75">ตำแหน่งที่ยังเปิดสรรหา</p>
                       {!focus && !province && !range && mo.openDelta !== null && (
@@ -514,6 +542,8 @@ function DashboardBody({ rows: allRows, hiredRegions, turndownRegions, trend, ap
 
                 <ActionTiles approvals={scopedApprovals} holds={scopedHolds} near={nearAll} isAdmin={isAdmin} onShowNearSla={showNearSla} onSpot={spotRows} onNote={showNote} />
 
+                <OutlookTiles resigns={scopedResigns} gaps={scopedGaps} hasQuota={hasQuota} outcomes={scopedOutcomes} today={today} onNote={showNote} />
+
                 <div className="grid gap-4 xl:grid-cols-2">
                   <AttentionCard
                     longest={longestAll.slice(0, 5)}
@@ -635,7 +665,7 @@ function DashboardBody({ rows: allRows, hiredRegions, turndownRegions, trend, ap
                       ))}
                     </ul>
                   </section>
-                  <TrendChart trend={trend} region={region} onNote={showNote} />
+                  <TrendChart trend={trend} region={region} bu={bu} onNote={showNote} />
                   </div>
                 </div>
               </>

@@ -29,7 +29,7 @@ export const BANDS: AgingBand[] = ["green", "orange", "red", "darkred"];
 export const BAND_DOT: Record<AgingBand, string> = { green: "#2a8638", orange: "#ea580c", red: "#dc2626", darkred: "#b91c1c" };
 
 /** Link into the tracking page with its search / band / status / region preset. */
-export function trackingHref(p: { q?: string; band?: AgingBand; status?: string; region?: string }): string {
+export function trackingHref(p: { q?: string; band?: AgingBand; status?: string; region?: string; bu?: string }): string {
   const qs = new URLSearchParams({ mine: "0" });
   for (const [k, v] of Object.entries(p)) if (v) qs.set(k, v);
   return `/tracking?${qs}`;

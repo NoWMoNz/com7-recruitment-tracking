@@ -94,9 +94,24 @@ describe("TABS", () => {
   test("covers every tab in the spec", () => {
     expect(Object.keys(TABS).sort()).toEqual([
       "Approvals", "Branches", "Import_Initial", "Import_NewEmployee", "Import_Requisition", "Import_Resign",
-      "Import_Transfer", "MonthlySnapshots", "NewHires", "Offers", "Positions", "RecruiterAssignments",
+      "Import_Transfer", "MonthlySnapshots", "NewHires", "Offers", "Positions", "Quota", "RecruiterAssignments",
       "Requisitions", "Requisitions_Archive", "ReviewQueue", "Settings", "SourcingChannels", "StatusLog",
       "StatusLog_Archive", "Turndowns", "Users",
     ]);
+  });
+});
+
+describe("Import_Resign withdrawal columns", () => {
+  test("a row from an old sheet without the withdrawal columns reads them as empty", () => {
+    const { rows, issues } = rowsToObjects<Record<string, unknown>>(TABS.Import_Resign, [
+      ["employee_id", "title", "first_name", "last_name", "branch_code", "position_code", "effective_date", "processed_at"],
+      ["E1", "นาย", "ก", "ข", "BKK-012", "SALES", "20/11/2026", "x"],
+    ]);
+    expect(issues).toEqual([]);
+    expect(rows[0]).toMatchObject({ employee_id: "E1", cancelled_at: "", cancelled_by: "", cancel_note: "" });
+  });
+
+  test("the three columns come last, so sheet:setup can append them to an existing sheet", () => {
+    expect(TABS.Import_Resign.columns.map((c) => c.key).slice(-3)).toEqual(["cancelled_at", "cancelled_by", "cancel_note"]);
   });
 });

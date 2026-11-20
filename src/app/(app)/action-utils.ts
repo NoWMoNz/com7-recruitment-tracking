@@ -1,6 +1,6 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
-import { ConflictError, NotFoundError } from "@/lib/repo";
+import { ConflictError, MissingColumnError, NotFoundError } from "@/lib/repo";
 
 export type ActionResult = { ok: true } | { ok: false; errors: Record<string, string> };
 
@@ -16,6 +16,7 @@ export function fail(message: string): ActionResult {
 export function writeError(e: unknown): ActionResult {
   if (e instanceof ConflictError) return fail(CONFLICT);
   if (e instanceof NotFoundError) return fail(GONE);
+  if (e instanceof MissingColumnError) return fail(e.message);
   console.error("[action] write failed", e);
   return fail("บันทึกไม่สำเร็จ กรุณาลองใหม่");
 }

@@ -1,7 +1,10 @@
 import "server-only";
 import ExcelJS from "exceljs";
+import { STATUS_LABEL } from "@/components/status-badge";
 import { formatThaiDate } from "@/lib/domain/dates";
 import { periodText, wholeMonth, type GroupStat } from "@/lib/domain/report";
+import { MANPOWER_STATUS_LABEL, OPEN_MATCH_LABEL, type ManpowerRow } from "@/lib/domain/manpower";
+import { RESIGN_STATE_LABEL, type ResignRow } from "@/lib/domain/resign";
 import type { ReportResult } from "./load";
 
 type Cell = string | number | null;
@@ -89,23 +92,77 @@ function tablesFor(r: ReportResult): Table[] {
   }
 }
 
-/** One worksheet per table: a title row, a bold header row, frozen panes and fixed column widths. */
-export async function buildWorkbook(r: ReportResult): Promise<{ buffer: ArrayBuffer; filename: string }> {
+function newWorkbook() {
   const wb = new ExcelJS.Workbook();
   wb.creator = "Com7 Recruitment Tracking";
   wb.created = new Date();
-  for (const t of tablesFor(r)) {
-    const ws = wb.addWorksheet(t.sheet, { views: [{ state: "frozen", ySplit: 2 }] });
-    ws.columns = t.columns.map((c) => ({ width: c.width }));
-    ws.addRow([t.title]).font = { bold: true, size: 13 };
-    const header = ws.addRow(t.columns.map((c) => c.header));
-    header.font = { bold: true };
-    header.eachCell((cell) => {
-      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFEEF0E9" } };
-    });
-    for (const row of t.rows) ws.addRow(row);
-    if (t.rows.length === 0) ws.addRow(["ไม่มีข้อมูล"]);
-  }
+  return wb;
+}
+
+/** One worksheet: a title row, a bold shaded header row, frozen panes and fixed column widths. */
+function writeTable(wb: ExcelJS.Workbook, t: Table) {
+  const ws = wb.addWorksheet(t.sheet, { views: [{ state: "frozen", ySplit: 2 }] });
+  ws.columns = t.columns.map((c) => ({ width: c.width }));
+  ws.addRow([t.title]).font = { bold: true, size: 13 };
+  const header = ws.addRow(t.columns.map((c) => c.header));
+  header.font = { bold: true };
+  header.eachCell((cell) => {
+    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFEEF0E9" } };
+  });
+  for (const row of t.rows) ws.addRow(row);
+  if (t.rows.length === 0) ws.addRow(["ไม่มีข้อมูล"]);
+}
+
+/** The resignation list as it is on screen (already filtered by the caller). */
+export async function buildResignationsWorkbook(rows: ResignRow[]): Promise<{ buffer: ArrayBuffer; filename: string }> {
+  const wb = newWorkbook();
+  writeTable(wb, {
+    sheet: "รายชื่อลาออก",
+    title: `รายชื่อลาออก ${rows.length} คน`,
+    columns: [
+      { header: "รหัสพนักงาน", width: 14 }, { header: "ชื่อ", width: 26 }, { header: "BU", width: 14 }, { header: "ภาค", width: 20 }, { header: "สาขา", width: 28 },
+      { header: "ตำแหน่ง", width: 24 }, { header: "วันที่มีผล", width: 12 }, { header: "สถานะ", width: 14 }, { header: "สถานะตำแหน่ง", width: 16 },
+      { header: "ยกเลิกเมื่อ", width: 12 }, { header: "ยกเลิกโดย", width: 18 }, { header: "เหตุผล", width: 40 },
+    ],
+    rows: rows.map((r) => [
+      r.employeeId, r.name, r.bu, r.region, r.branchName, r.positionName, formatThaiDate(r.effectiveDate), RESIGN_STATE_LABEL[r.state],
+      r.reqStatus ? STATUS_LABEL[r.reqStatus] : "-", r.cancelledDay, r.cancelledBy, r.cancelNote,
+    ]),
+  });
+  return { buffer: (await wb.xlsx.writeBuffer()) as ArrayBuffer, filename: "recruitment-resignations.xlsx" };
+}
+
+/** HR's quota against actual people, per branch and per position, with the open requisitions in the system beside it. */
+export async function buildManpowerWorkbook(rows: ManpowerRow[]): Promise<{ buffer: ArrayBuffer; filename: string }> {
+  const wb = newWorkbook();
+  const place = (r: ManpowerRow): Cell[] => [r.bu, r.region, r.branchName];
+  writeTable(wb, {
+    sheet: "รายสาขา",
+    title: `กำลังพลรายสาขา ${rows.length} สาขา`,
+    columns: [
+      { header: "BU", width: 14 }, { header: "ภาค", width: 20 }, { header: "สาขา", width: 30 },
+      { header: "Quota", width: 9 }, { header: "Actual", width: 9 }, { header: "ขาด", width: 8 }, { header: "เกิน", width: 8 }, { header: "สถานะ", width: 10 },
+      { header: "เปิดสรรหาในระบบ", width: 17 }, { header: "เทียบกับระบบ", width: 14 },
+    ],
+    rows: rows.map((r) => [...place(r), r.quota, r.actual, r.short, r.over, MANPOWER_STATUS_LABEL[r.status], r.open, OPEN_MATCH_LABEL[r.match]]),
+  });
+  writeTable(wb, {
+    sheet: "รายตำแหน่ง",
+    title: "กำลังพลรายตำแหน่ง",
+    columns: [
+      { header: "BU", width: 14 }, { header: "ภาค", width: 20 }, { header: "สาขา", width: 30 },
+      { header: "ตำแหน่ง", width: 28 }, { header: "Quota", width: 9 }, { header: "Actual", width: 9 }, { header: "ขาด", width: 8 }, { header: "เกิน", width: 8 },
+      { header: "เปิดสรรหาในระบบ", width: 17 }, { header: "เทียบกับระบบ", width: 14 },
+    ],
+    rows: rows.flatMap((r) => r.positions.map((p) => [...place(r), p.positionName, p.quota, p.actual, p.short, p.over, p.open, OPEN_MATCH_LABEL[p.match]])),
+  });
+  return { buffer: (await wb.xlsx.writeBuffer()) as ArrayBuffer, filename: "recruitment-manpower.xlsx" };
+}
+
+/** One worksheet per table: a title row, a bold header row, frozen panes and fixed column widths. */
+export async function buildWorkbook(r: ReportResult): Promise<{ buffer: ArrayBuffer; filename: string }> {
+  const wb = newWorkbook();
+  for (const t of tablesFor(r)) writeTable(wb, t);
   // File name: "all" for everything, the month when the range is one, otherwise from_to.
   const { range } = r.params;
   const stamp = range.all ? "all" : (wholeMonth(range) ?? `${range.first}_${range.last}`);

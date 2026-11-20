@@ -64,7 +64,7 @@ const nothingToDo = (p: ProcessorPlan) =>
   p.reqAppend.length + p.reqUpdate.length + p.offerAppend.length + p.offerRemove.length + p.newHireAppend.length + p.logAppend.length + p.reviewAppend.length;
 
 const resign = (p: Partial<ImportResign> = {}): ImportResign => ({
-  employee_id: "E100", title: "นาย", first_name: "ก", last_name: "ข", branch_code: "BKK-012", position_code: "SALES", effective_date: "2026-11-20", processed_at: "", ...p,
+  employee_id: "E100", title: "นาย", first_name: "ก", last_name: "ข", branch_code: "BKK-012", position_code: "SALES", effective_date: "2026-11-20", processed_at: "", cancelled_at: "", cancelled_by: "", cancel_note: "", ...p,
 });
 const transfer = (p: Partial<ImportTransfer> = {}): ImportTransfer => ({
   employee_id: "E200", title: "นาย", first_name: "โอน", last_name: "ย้าย", from_branch: "BKK-012", from_position: "SALES", to_branch: "CNX-001", to_position: "SALES",

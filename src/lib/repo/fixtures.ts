@@ -4,14 +4,14 @@ import type { Dataset } from "./types";
 /** Demo/test dataset. "Today" for these dates is 17/11/2026. */
 
 const branches: Branch[] = [
-  { branch_code: "BKK-012", branch_name: "เซ็นทรัลลาดพร้าว", brand: "Studio7", province: "กรุงเทพฯ", region: "ภาคกลาง", status: "Open", open_date: null, close_date: null },
-  { branch_code: "BKK-045", branch_name: "สยามพารากอน", brand: "BaNANA", province: "กรุงเทพฯ", region: "ภาคกลาง", status: "Open", open_date: null, close_date: null },
-  { branch_code: "NBI-003", branch_name: "เซ็นทรัลเวสต์เกต", brand: "Studio7", province: "นนทบุรี", region: "ภาคกลาง", status: "Open", open_date: null, close_date: null },
-  { branch_code: "CNX-001", branch_name: "เซ็นทรัลเฟสติวัล เชียงใหม่", brand: "Studio7", province: "เชียงใหม่", region: "ภาคเหนือ", status: "Open", open_date: null, close_date: null },
-  { branch_code: "CRI-002", branch_name: "เซ็นทรัลเชียงราย", brand: "BaNANA", province: "เชียงราย", region: "ภาคเหนือ", status: "Project", open_date: "2026-12-01", close_date: null },
-  { branch_code: "HKT-004", branch_name: "เซ็นทรัลภูเก็ต", brand: "Studio7", province: "ภูเก็ต", region: "ภาคใต้", status: "Open", open_date: null, close_date: null },
+  { branch_code: "BKK-012", branch_name: "เซ็นทรัลลาดพร้าว", brand: "Studio7", bu: "Apple", province: "กรุงเทพฯ", region: "ภาคกลาง", status: "Open", open_date: null, close_date: null },
+  { branch_code: "BKK-045", branch_name: "สยามพารากอน", brand: "BaNANA", bu: "BaNANA", province: "กรุงเทพฯ", region: "ภาคกลาง", status: "Open", open_date: null, close_date: null },
+  { branch_code: "NBI-003", branch_name: "เซ็นทรัลเวสต์เกต", brand: "Studio7", bu: "Apple", province: "นนทบุรี", region: "ภาคกลาง", status: "Open", open_date: null, close_date: null },
+  { branch_code: "CNX-001", branch_name: "เซ็นทรัลเฟสติวัล เชียงใหม่", brand: "Studio7", bu: "Apple", province: "เชียงใหม่", region: "ภาคเหนือ", status: "Open", open_date: null, close_date: null },
+  { branch_code: "CRI-002", branch_name: "เซ็นทรัลเชียงราย", brand: "BaNANA", bu: "BaNANA", province: "เชียงราย", region: "ภาคเหนือ", status: "Project", open_date: "2026-12-01", close_date: null },
+  { branch_code: "HKT-004", branch_name: "เซ็นทรัลภูเก็ต", brand: "Studio7", bu: "Apple", province: "ภูเก็ต", region: "ภาคใต้", status: "Open", open_date: null, close_date: null },
   // Closing on 15/11: the processor cancels its open requisitions and flags the pending Offer for review.
-  { branch_code: "KKN-007", branch_name: "เซ็นทรัลขอนแก่น", brand: "Studio7", province: "ขอนแก่น", region: "ภาคอีสาน", status: "Closed", open_date: null, close_date: "2026-11-15" },
+  { branch_code: "KKN-007", branch_name: "เซ็นทรัลขอนแก่น", brand: "Studio7", bu: "Apple", province: "ขอนแก่น", region: "ภาคอีสาน", status: "Closed", open_date: null, close_date: "2026-11-15" },
 ];
 
 const positions: Position[] = [
@@ -171,10 +171,25 @@ export const fixtures: Dataset = {
   StatusLog: statusLog,
   Approvals: approvals,
   // Sample rows pasted by Ju, waiting for "ประมวลผลข้อมูล" (dates relative to 17–18/11/2026).
+  // HR's headcount as of 11/11/2026 for the demo branches: short, over, full and an empty store.
+  Quota: [
+    { branch_code: "BKK-012", position_code: "SALES", quota: 6, actual: 4, report_date: "2026-11-11" },
+    { branch_code: "BKK-012", position_code: "SM", quota: 1, actual: 1, report_date: "2026-11-11" },
+    { branch_code: "BKK-012", position_code: "ASM", quota: 1, actual: 2, report_date: "2026-11-11" },
+    { branch_code: "BKK-045", position_code: "SALES", quota: 5, actual: 5, report_date: "2026-11-11" },
+    { branch_code: "BKK-045", position_code: "ASM", quota: 1, actual: 1, report_date: "2026-11-11" },
+    { branch_code: "NBI-003", position_code: "SALES", quota: 4, actual: 5, report_date: "2026-11-11" },
+    { branch_code: "NBI-003", position_code: "SM", quota: 1, actual: 0, report_date: "2026-11-11" },
+    { branch_code: "CNX-001", position_code: "SALES", quota: 5, actual: 3, report_date: "2026-11-11" },
+    { branch_code: "CNX-001", position_code: "TECH", quota: 2, actual: 2, report_date: "2026-11-11" },
+    { branch_code: "CRI-002", position_code: "SALES", quota: 4, actual: 0, report_date: "2026-11-11" },
+    { branch_code: "HKT-004", position_code: "SALES", quota: 4, actual: 4, report_date: "2026-11-11" },
+    { branch_code: "KKN-007", position_code: "SALES", quota: 4, actual: 2, report_date: "2026-11-11" },
+  ],
   Import_Resign: [
-    { employee_id: "E1001", title: "นาย", first_name: "วิชัย", last_name: "ทองมา", branch_code: "BKK-045", position_code: "SALES", effective_date: "2026-11-10", processed_at: "" },
-    { employee_id: "E1002", title: "นางสาว", first_name: "อรุณี", last_name: "แสงทอง", branch_code: "HKT-004", position_code: "TECH", effective_date: "2026-12-01", processed_at: "" },
-    { employee_id: "E1003", title: "นาย", first_name: "ทดสอบ", last_name: "รหัสผิด", branch_code: "XXX-999", position_code: "SALES", effective_date: "2026-11-12", processed_at: "" },
+    { employee_id: "E1001", title: "นาย", first_name: "วิชัย", last_name: "ทองมา", branch_code: "BKK-045", position_code: "SALES", effective_date: "2026-11-10", processed_at: "", cancelled_at: "", cancelled_by: "", cancel_note: "" },
+    { employee_id: "E1002", title: "นางสาว", first_name: "อรุณี", last_name: "แสงทอง", branch_code: "HKT-004", position_code: "TECH", effective_date: "2026-12-01", processed_at: "", cancelled_at: "", cancelled_by: "", cancel_note: "" },
+    { employee_id: "E1003", title: "นาย", first_name: "ทดสอบ", last_name: "รหัสผิด", branch_code: "XXX-999", position_code: "SALES", effective_date: "2026-11-12", processed_at: "", cancelled_at: "", cancelled_by: "", cancel_note: "" },
   ],
   Import_Transfer: [
     { employee_id: "E2001", title: "นาย", first_name: "ธนา", last_name: "ใจกว้าง", from_branch: "BKK-012", from_position: "SALES", to_branch: "CNX-001", to_position: "SALES", effective_date: "2026-11-15", processed_at: "" },

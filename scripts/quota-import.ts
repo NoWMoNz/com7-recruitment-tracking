@@ -3,10 +3,11 @@
  *
  *   pnpm quota:import "Quota Branch 11 Nov 2026.xlsx" [--date=2026-11-11] [--out=ไฟล์ผลลัพธ์.xlsx]
  *
- * ได้ไฟล์ .xlsx 3 แท็บ หัวคอลัมน์ตรงกับ Sheet ของระบบ:
- *   Branches        ทุกสาขาในไฟล์ (ภาค/จังหวัดตามไฟล์)
+ * ได้ไฟล์ .xlsx 4 แท็บ หัวคอลัมน์ตรงกับ Sheet ของระบบ:
+ *   Branches        ทุกสาขาในไฟล์ (ภาค/จังหวัด/BU ตามไฟล์, ร้านที่ชื่อลงท้าย "(ปิด…)" เป็น Closed พร้อมวันปิด)
  *   Positions       ทุกตำแหน่ง พร้อมรหัสจากชีต Quota01_Summary
- *   Import_Initial  1 แถวต่อ 1 อัตราที่ขาด (สถานะ Vacancy, วันที่แจ้งสรรหา = วันที่ของรายงาน)
+ *   Quota           โควต้าและคนปัจจุบันของทุกสาขา × ตำแหน่ง (วางทับแท็บ Quota ทั้งแท็บทุกครั้งที่ import)
+ *   Import_Initial  1 แถวต่อ 1 อัตราที่ขาด (สถานะ Vacancy, วันที่แจ้งสรรหา = วันที่ของรายงาน) ไม่รวมร้านที่ปิดแล้ว
  * สคริปต์ไม่เขียนลง Sheet เอง: ตรวจไฟล์แล้วคัดลอกไปวางในแท็บเดียวกันของ Sheet
  */
 import { basename, dirname, extname, join } from "node:path";
@@ -48,7 +49,7 @@ function readAll(ws: ExcelJS.Worksheet): QuotaRow[] {
     if (!c) throw new Error(`ชีต All ไม่มีคอลัมน์ "${name}"`);
     return c;
   };
-  const C = { id: col("ID"), shop: col("Shop"), brand: col("Group เล็ก"), region: col("ภาค"), province: col("จังหวัด"), position: col("Position"), quota: col("Quota"), actual: col("Actual"), vacant: col("Vacant") };
+  const C = { id: col("ID"), shop: col("Shop"), brand: col("Group เล็ก"), bu: col("Group ใหญ่"), region: col("ภาค"), province: col("จังหวัด"), position: col("Position"), quota: col("Quota"), actual: col("Actual"), vacant: col("Vacant") };
   const rows: QuotaRow[] = [];
   for (let r = 2; r <= ws.rowCount; r++) {
     const row = ws.getRow(r);
@@ -58,6 +59,7 @@ function readAll(ws: ExcelJS.Worksheet): QuotaRow[] {
       id: typeof id === "number" ? String(Math.trunc(id)) : String(id).trim(),
       shop: str(row.getCell(C.shop).value),
       brand: str(row.getCell(C.brand).value),
+      bu: str(row.getCell(C.bu).value),
       region: str(row.getCell(C.region).value),
       province: str(row.getCell(C.province).value),
       position: str(row.getCell(C.position).value),
@@ -140,15 +142,17 @@ async function main() {
   addTab(out, "Branches", result.branches);
   addTab(out, "Positions", result.positions);
   addTab(out, "Import_Initial", result.initial);
+  addTab(out, "Quota", result.quota);
   const target = opt("out") ?? join(dirname(input), `${basename(input, extname(input))} - import.xlsx`);
   log("กำลังเขียนไฟล์ผลลัพธ์");
   await out.xlsx.writeFile(target);
 
   const s = result.summary;
   console.log(`วันที่รายงาน ${date}`);
-  console.log(`Branches        ${s.branches} สาขา`);
+  console.log(`Branches        ${s.branches} สาขา (ร้านที่ปิดแล้ว ${s.closedBranches})`);
   console.log(`Positions       ${s.positions} ตำแหน่ง`);
-  console.log(`Import_Initial  ${s.openings} อัตราที่ขาด (จาก ${s.shortRows} คู่สาขา-ตำแหน่ง) · ตำแหน่งที่เกินโควต้า ${s.over} อัตรา ไม่ถูกนำเข้า`);
+  console.log(`Quota           ${result.quota.length} บรรทัด (สาขา × ตำแหน่ง)
+Import_Initial  ${s.openings} อัตราที่ขาด (จาก ${s.shortRows} คู่สาขา-ตำแหน่ง) · ตำแหน่งที่เกินโควต้า ${s.over} อัตรา ไม่ถูกนำเข้า · ร้านที่ปิดแล้ว ${s.closedOpenings} อัตรา ไม่ถูกนำเข้า`);
   for (const w of [...summary.warnings, ...result.warnings]) console.warn(`! ${w}`);
   console.log(`บันทึกแล้ว: ${target}`);
 }

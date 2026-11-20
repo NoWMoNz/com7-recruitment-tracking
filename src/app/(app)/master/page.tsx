@@ -43,6 +43,7 @@ async function MasterContent({ tab }: { tab: Tab }) {
   const positionOptions = positions.map((p) => ({ value: p.position_code, label: p.position_name }));
   const taOptions = assignableUsers(users).map((u) => ({ value: normalizeEmail(u.email), label: `${u.name} (${u.email})` }));
   const regions = [...new Set(branches.map((b) => b.region).filter(Boolean))];
+  const bus = [...new Set(branches.map((b) => b.bu).filter(Boolean))].sort((a, b) => a.localeCompare(b, "th"));
   const groups = [...new Set(positions.map((p) => p.position_group).filter(Boolean))];
   const defaultSla = settings.find((s) => s.key === "default_sla_days")?.value || "30";
 
@@ -58,6 +59,7 @@ async function MasterContent({ tab }: { tab: Tab }) {
           columns={[
             { key: "branch_name", label: "สาขา" },
             { key: "branch_code", label: "", sub: true },
+            { key: "bu", label: "BU" },
             { key: "brand", label: "", sub: true },
             { key: "region", label: "ภาค" },
             { key: "province", label: "จังหวัด" },
@@ -68,7 +70,8 @@ async function MasterContent({ tab }: { tab: Tab }) {
           fields={[
             { name: "branch_code", label: "รหัสสาขา", type: "text", lockOnEdit: true, required: true, placeholder: "เช่น BKK-012" },
             { name: "branch_name", label: "ชื่อสาขา", type: "text", required: true },
-            { name: "brand", label: "แบรนด์", type: "text" },
+            { name: "bu", label: "BU", type: "text", hint: bus.length ? `ที่มี: ${bus.join(", ")}` : "ตาม Group ใหญ่ ในไฟล์ HR เช่น Apple, BaNANA" },
+            { name: "brand", label: "แบรนด์ (Group เล็ก)", type: "text" },
             { name: "region", label: "ภาค", type: "text", required: true, hint: regions.length ? `ที่มี: ${regions.join(", ")}` : undefined },
             { name: "province", label: "จังหวัด", type: "text" },
             { name: "status", label: "สถานะ", type: "select", required: true, options: BRANCH_STATUSES.map((s) => ({ value: s, label: s })) },

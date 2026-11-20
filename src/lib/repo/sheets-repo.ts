@@ -1,6 +1,6 @@
 import { findRowNumberById, objectToRow, rowsToObjects } from "@/lib/sheets/rows";
 import { TABS, type TabName } from "@/lib/sheets/schema";
-import { NotFoundError, type Repo, type RowOf } from "./types";
+import { MissingColumnError, NotFoundError, type Repo, type RowOf } from "./types";
 import { applyPatch } from "./versioning";
 
 /** The subset of `sheets.spreadsheets.values` this repo uses (injectable for tests). */
@@ -112,6 +112,7 @@ export class SheetsRepo implements Repo {
     if (rowNum === null) throw new NotFoundError(`ไม่พบ ${id} ในแท็บ ${tab}`);
     const header = values[0].map((h) => String(h).trim());
     const current = this.parse(tab, [values[0], values[rowNum - 1]])[0] as unknown as AnyRow;
+    this.assertPatchColumns(tab, header, patch as unknown as AnyRow);
     const next = applyPatch(tab, current, patch as unknown as AnyRow, expectedVersion);
     await this.opts.api.update({
       spreadsheetId: this.opts.sheetId,
@@ -141,6 +142,7 @@ export class SheetsRepo implements Repo {
       const rowNumber = this.locate(tab, values, id);
       if (rowNumber === null) throw new NotFoundError(`ไม่พบ ${id} ในแท็บ ${tab}`);
       const current = this.parse(tab, [values[0], values[rowNumber - 1]])[0] as unknown as AnyRow;
+      this.assertPatchColumns(tab, header, patch as unknown as AnyRow);
       const next = applyPatch(tab, current, patch as unknown as AnyRow, expectedVersion);
       return { rowNumber, values: objectToRow(TABS[tab], header, next) };
     });
@@ -157,11 +159,26 @@ export class SheetsRepo implements Repo {
     return out;
   }
 
+  /** Columns of the spec that a patch names but the sheet's header does not have: writing them would silently drop them. */
+  private assertPatchColumns(tab: TabName, header: string[], patch: AnyRow): void {
+    const known = new Set(TABS[tab].columns.map((c) => c.key));
+    const missing = Object.keys(patch).filter((k) => patch[k] !== undefined && known.has(k) && !header.includes(k));
+    if (missing.length) throw new MissingColumnError(tab, missing);
+  }
+
+  async requireColumns(tab: TabName, columns: string[]): Promise<void> {
+    const values = await this.fresh(tab);
+    const header = (values[0] ?? []).map((h) => String(h).trim());
+    const missing = columns.filter((c) => !header.includes(c));
+    if (missing.length) throw new MissingColumnError(tab, missing);
+  }
+
   async updateAt<T extends TabName>(tab: T, items: { rowNumber: number; patch: Partial<RowOf<T>> }[]): Promise<void> {
     if (items.length === 0) return;
     const values = await this.fresh(tab);
     const header = values[0].map((h) => String(h).trim());
     const writes = items.map(({ rowNumber, patch }) => {
+      this.assertPatchColumns(tab, header, patch as unknown as AnyRow);
       const [current] = this.parse(tab, [values[0], values[rowNumber - 1] ?? []]);
       if (!current) throw new NotFoundError(`ไม่พบแถว ${rowNumber} ในแท็บ ${tab}`);
       return { rowNumber, values: objectToRow(TABS[tab], header, { ...(current as unknown as AnyRow), ...(patch as unknown as AnyRow) }) };

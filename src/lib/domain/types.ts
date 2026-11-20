@@ -47,6 +47,33 @@ export interface Offer {
   created_at: string;
 }
 
+export type ApprovalType = "Cancel" | "Hold";
+export type ApprovalStatus = "Pending" | "Approved" | "Rejected";
+
+/** A TA's request to Cancel or Hold a requisition, decided by a super_admin. */
+export interface Approval {
+  id: string;
+  req_id: string;
+  type: ApprovalType;
+  reason: string;
+  effective_date: LocalDate;
+  /** Evidence store reference (private Blob URL, or "local:<id>" in dev). */
+  evidence_url: string;
+  requested_by: string;
+  requested_at: string;
+  status: ApprovalStatus;
+  decided_by: string;
+  decided_at: string;
+  decision_note: string;
+}
+
+/** An Offer moved out of `Offers` when the candidate turned it down. */
+export interface Turndown extends Offer {
+  turndown_date: LocalDate;
+  reason: string;
+  recorded_by: string;
+}
+
 export interface StatusLogEntry {
   id: string;
   req_id: string;
@@ -83,6 +110,109 @@ export interface User {
   role: Role;
   scope: string;
   active: boolean;
+}
+
+/** Hired person: the Offer plus what HR's new-employee data adds. */
+export interface NewHire extends Offer {
+  employee_id: string;
+  start_date: LocalDate | null;
+  hired_at: LocalDate;
+  tat: number;
+  tat_result: string;
+}
+
+export type ReviewType = "UnmatchedHire" | "TransferNoReq" | "OfferAtClosedStore";
+
+/** Something the processor could not decide on its own; super_admin resolves it in the web. */
+export interface ReviewItem {
+  id: string;
+  type: ReviewType;
+  /** Stable key of the source event, so re-running the processor doesn't add the same item twice. */
+  ref: string;
+  detail: string;
+  resolved_by: string;
+  resolved_at: string;
+}
+
+/** Rows pasted by super_admin into the Import_* tabs (fixed headers). */
+export interface ImportInitial {
+  branch_code: string;
+  position_code: string;
+  request_date: LocalDate | null;
+  ta_email: string;
+  status: string;
+  title: string;
+  first_name: string;
+  last_name: string;
+  offer_date: LocalDate | null;
+  sourcing_channel: string;
+  hold_since: LocalDate | null;
+  processed_at: string;
+}
+
+export interface ImportRequisition {
+  branch_code: string;
+  position_code: string;
+  headcount: number | null;
+  request_date: LocalDate | null;
+  source: string;
+  note: string;
+  processed_at: string;
+}
+
+export interface ImportResign {
+  employee_id: string;
+  title: string;
+  first_name: string;
+  last_name: string;
+  branch_code: string;
+  position_code: string;
+  effective_date: LocalDate | null;
+  processed_at: string;
+}
+
+export interface ImportTransfer {
+  employee_id: string;
+  title: string;
+  first_name: string;
+  last_name: string;
+  from_branch: string;
+  from_position: string;
+  to_branch: string;
+  to_position: string;
+  effective_date: LocalDate | null;
+  processed_at: string;
+}
+
+export interface ImportNewEmployee {
+  employee_id: string;
+  title: string;
+  first_name: string;
+  last_name: string;
+  branch_code: string;
+  position_code: string;
+  start_date: LocalDate | null;
+  processed_at: string;
+  matched_req_id: string;
+}
+
+/** Frozen monthly figures per TA and region, written when a month is closed. */
+export interface MonthlySnapshot {
+  /** "YYYY-MM" */
+  month: string;
+  ta_email: string;
+  region: string;
+  carried_in: number;
+  new: number;
+  total: number;
+  closed: number;
+  cancel: number;
+  hold: number;
+  offer_pending: number;
+  remaining: number;
+  tat_meet: number;
+  tat_total: number;
+  computed_at: string;
 }
 
 export interface SettingRow {

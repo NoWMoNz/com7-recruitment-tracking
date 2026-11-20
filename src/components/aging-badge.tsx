@@ -1,14 +1,14 @@
 import type { AgingBand, TatResult } from "@/lib/domain/tat";
 import { cn } from "@/lib/utils";
 
-const BAND_CLASS: Record<AgingBand, string> = {
-  green: "bg-[#16a34a] text-white",
+export const BAND_CLASS: Record<AgingBand, string> = {
+  green: "bg-[#2a8638] text-white",
   orange: "bg-[#ea580c] text-white",
   red: "bg-[#dc2626] text-white",
   darkred: "bg-[#7f1d1d] text-white",
 };
 
-const BAND_LABEL: Record<AgingBand, string> = {
+export const BAND_LABEL: Record<AgingBand, string> = {
   green: "0–30 วัน",
   orange: "31–60 วัน",
   red: "61–90 วัน",

@@ -1,4 +1,4 @@
-import type { Branch, Offer, Position, Requisition, Status, StatusLogEntry, User } from "@/lib/domain/types";
+import type { Approval, Branch, Offer, Position, Requisition, Status, StatusLogEntry, User } from "@/lib/domain/types";
 import type { Dataset } from "./types";
 
 /** Demo/test dataset. "Today" for these dates is 17/11/2026. */
@@ -10,6 +10,8 @@ const branches: Branch[] = [
   { branch_code: "CNX-001", branch_name: "เซ็นทรัลเฟสติวัล เชียงใหม่", brand: "Studio7", province: "เชียงใหม่", region: "ภาคเหนือ", status: "Open", open_date: null, close_date: null },
   { branch_code: "CRI-002", branch_name: "เซ็นทรัลเชียงราย", brand: "BaNANA", province: "เชียงราย", region: "ภาคเหนือ", status: "Project", open_date: "2026-12-01", close_date: null },
   { branch_code: "HKT-004", branch_name: "เซ็นทรัลภูเก็ต", brand: "Studio7", province: "ภูเก็ต", region: "ภาคใต้", status: "Open", open_date: null, close_date: null },
+  // Closing on 15/11: the processor cancels its open requisitions and flags the pending Offer for review.
+  { branch_code: "KKN-007", branch_name: "เซ็นทรัลขอนแก่น", brand: "Studio7", province: "ขอนแก่น", region: "ภาคอีสาน", status: "Closed", open_date: null, close_date: "2026-11-15" },
 ];
 
 const positions: Position[] = [
@@ -54,14 +56,17 @@ const rows: [string, string, string, Status, string][] = [
   ["HKT-004", "TECH", "2026-10-30", "Offer", "mind"],
   ["HKT-004", "ASM", "2026-09-01", "Vacancy", ""],
   ["HKT-004", "SALES", "2026-10-01", "Hired", "mind"],
+  ["KKN-007", "SALES", "2026-10-10", "Vacancy", "ploy"],
+  ["KKN-007", "SM", "2026-09-15", "Offer", "ploy"],
 ];
 
-const offerDates: Record<number, string> = { 2: "2026-11-14", 9: "2026-11-12", 15: "2026-11-05", 23: "2026-11-16" };
+const offerDates: Record<number, string> = { 2: "2026-11-14", 9: "2026-11-12", 15: "2026-11-05", 23: "2026-11-16", 27: "2026-11-01" };
 const offerNames: Record<number, [string, string, string]> = {
   2: ["นาย", "สมชาย", "ใจดี"],
   9: ["นางสาว", "สุดา", "แก้วใส"],
   15: ["นาย", "ณัฐพล", "ศรีสุข"],
   23: ["นาง", "วรรณา", "ทองดี"],
+  27: ["นาย", "ปกรณ์", "มั่นคง"],
 };
 
 const pad = (n: number) => String(n).padStart(4, "0");
@@ -125,6 +130,23 @@ const statusLog: StatusLogEntry[] = [
   // REQ-0012 is on hold since 01/09
   log(4, 12, "Vacancy", "PendingHold", "2026-08-30"),
   log(5, 12, "PendingHold", "Hold", "2026-09-01"),
+  // The two pending rows were requested through the web, so each has a request awaiting approval.
+  log(6, 3, "Vacancy", "PendingCancel", "2026-11-15"),
+  log(7, 11, "Vacancy", "PendingHold", "2026-11-16"),
+];
+
+/** Pending requests for REQ-0003 / REQ-0011, with built-in placeholder photos ("local:demo-*"). */
+const approvals: Approval[] = [
+  {
+    id: "APR-0001", req_id: "REQ-0003", type: "Cancel", reason: "สาขาปรับโครงสร้าง ไม่ต้องการ Store Manager เพิ่ม",
+    effective_date: "2026-11-15", evidence_url: "local:demo-memo", requested_by: "mind@example.com",
+    requested_at: "2026-11-15T04:10:00.000Z", status: "Pending", decided_by: "", decided_at: "", decision_note: "",
+  },
+  {
+    id: "APR-0002", req_id: "REQ-0011", type: "Hold", reason: "ร้านปิดปรับปรุง 1 เดือน",
+    effective_date: "2026-11-16", evidence_url: "local:demo-notice", requested_by: "ploy@example.com",
+    requested_at: "2026-11-16T07:30:00.000Z", status: "Pending", decided_by: "", decided_at: "", decision_note: "",
+  },
 ];
 
 export const fixtures: Dataset = {
@@ -147,4 +169,21 @@ export const fixtures: Dataset = {
   Requisitions: requisitions,
   Offers: offers,
   StatusLog: statusLog,
+  Approvals: approvals,
+  // Sample rows pasted by Ju, waiting for "ประมวลผลข้อมูล" (dates relative to 17–18/11/2026).
+  Import_Resign: [
+    { employee_id: "E1001", title: "นาย", first_name: "วิชัย", last_name: "ทองมา", branch_code: "BKK-045", position_code: "SALES", effective_date: "2026-11-10", processed_at: "" },
+    { employee_id: "E1002", title: "นางสาว", first_name: "อรุณี", last_name: "แสงทอง", branch_code: "HKT-004", position_code: "TECH", effective_date: "2026-12-01", processed_at: "" },
+    { employee_id: "E1003", title: "นาย", first_name: "ทดสอบ", last_name: "รหัสผิด", branch_code: "XXX-999", position_code: "SALES", effective_date: "2026-11-12", processed_at: "" },
+  ],
+  Import_Transfer: [
+    { employee_id: "E2001", title: "นาย", first_name: "ธนา", last_name: "ใจกว้าง", from_branch: "BKK-012", from_position: "SALES", to_branch: "CNX-001", to_position: "SALES", effective_date: "2026-11-15", processed_at: "" },
+    { employee_id: "E2002", title: "นางสาว", first_name: "พิมพ์", last_name: "ดาวเรือง", from_branch: "HKT-004", from_position: "SALES", to_branch: "NBI-003", to_position: "SM", effective_date: "2026-11-16", processed_at: "" },
+    { employee_id: "E2003", title: "นาย", first_name: "กิตติ", last_name: "รุ่งเรือง", from_branch: "BKK-045", from_position: "ASM", to_branch: "BKK-012", to_position: "SALES", effective_date: "2026-12-05", processed_at: "" },
+  ],
+  Import_NewEmployee: [
+    { employee_id: "E3001", title: "นาย", first_name: "สมชาย", last_name: "ใจดี", branch_code: "BKK-012", position_code: "SALES", start_date: "2026-11-20", processed_at: "", matched_req_id: "" },
+    { employee_id: "E3002", title: "นางสาว", first_name: "สุดา", last_name: "แก้วใส่", branch_code: "NBI-003", position_code: "SALES", start_date: "2026-11-21", processed_at: "", matched_req_id: "" },
+  ],
+  Import_Requisition: [{ branch_code: "CRI-002", position_code: "TECH", headcount: 2, request_date: "2026-11-15", source: "NewStore", note: "ร้านใหม่", processed_at: "" }],
 };

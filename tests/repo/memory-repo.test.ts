@@ -33,6 +33,38 @@ describe("MemoryRepo", () => {
     await expect(repo.update("Requisitions", "NOPE", { status: "Offer" })).rejects.toBeInstanceOf(NotFoundError);
   });
 
+  test("remove deletes the row; unknown id is not found", async () => {
+    await repo.remove("Offers", "OFF-0002");
+    expect((await repo.list("Offers")).some((o) => o.id === "OFF-0002")).toBe(false);
+    await expect(repo.remove("Offers", "OFF-0002")).rejects.toBeInstanceOf(NotFoundError);
+  });
+
+  test("updateMany is all-or-nothing on a stale version", async () => {
+    await expect(
+      repo.updateMany("Requisitions", [
+        { id: "REQ-0001", patch: { status: "Hold" }, expectedVersion: 1 },
+        { id: "REQ-0004", patch: { status: "Hold" }, expectedVersion: 7 },
+      ]),
+    ).rejects.toBeInstanceOf(ConflictError);
+    expect((await repo.getFresh("Requisitions", "REQ-0001"))!.status).toBe("Vacancy");
+    await repo.updateMany("Requisitions", [{ id: "REQ-0001", patch: { status: "Hold" }, expectedVersion: 1 }]);
+    expect((await repo.getFresh("Requisitions", "REQ-0001"))!.version).toBe(2);
+  });
+
+  test("listNumbered numbers rows from 2; updateAt patches by row number", async () => {
+    await repo.append("Import_Initial", [{ branch_code: "B1" }, { branch_code: "B2" }] as never);
+    const rows = await repo.listNumbered("Import_Initial");
+    expect(rows.map((r) => r.rowNumber)).toEqual([2, 3]);
+    await repo.updateAt("Import_Initial", [{ rowNumber: 3, patch: { processed_at: "now" } as never }]);
+    expect((await repo.list("Import_Initial"))[1].processed_at).toBe("now");
+  });
+
+  test("removeAt deletes by row number", async () => {
+    await repo.append("Import_Initial", [{ branch_code: "B1" }, { branch_code: "B2" }, { branch_code: "B3" }] as never);
+    await repo.removeAt("Import_Initial", [2, 4]);
+    expect((await repo.list("Import_Initial")).map((r) => r.branch_code)).toEqual(["B2"]);
+  });
+
   test("append then list", async () => {
     await repo.append("SourcingChannels", [{ channel: "TikTok", active: true }]);
     const channels = await repo.list("SourcingChannels");

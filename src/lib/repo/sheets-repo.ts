@@ -24,6 +24,11 @@ export interface SheetsValuesApi {
     insertDataOption?: string;
     requestBody: { values: unknown[][] };
   }): Promise<unknown>;
+  clear(params: { spreadsheetId: string; range: string }): Promise<unknown>;
+  batchUpdate(params: {
+    spreadsheetId: string;
+    requestBody: { valueInputOption: string; data: { range: string; values: unknown[][] }[] };
+  }): Promise<unknown>;
 }
 
 export interface SheetsRepoOptions {
@@ -91,7 +96,7 @@ export class SheetsRepo implements Repo {
       range: `${tab}!A1`,
       valueInputOption: "RAW",
       insertDataOption: "INSERT_ROWS",
-      requestBody: { values: rows.map((r) => objectToRow(TABS[tab], header, r as AnyRow)) },
+      requestBody: { values: rows.map((r) => objectToRow(TABS[tab], header, r as unknown as AnyRow)) },
     });
     await this.invalidate(tab);
   }
@@ -106,8 +111,8 @@ export class SheetsRepo implements Repo {
     const rowNum = this.locate(tab, values, id);
     if (rowNum === null) throw new NotFoundError(`ไม่พบ ${id} ในแท็บ ${tab}`);
     const header = values[0].map((h) => String(h).trim());
-    const current = this.parse(tab, [values[0], values[rowNum - 1]])[0] as AnyRow;
-    const next = applyPatch(tab, current, patch as AnyRow, expectedVersion);
+    const current = this.parse(tab, [values[0], values[rowNum - 1]])[0] as unknown as AnyRow;
+    const next = applyPatch(tab, current, patch as unknown as AnyRow, expectedVersion);
     await this.opts.api.update({
       spreadsheetId: this.opts.sheetId,
       range: `${tab}!A${rowNum}`,
@@ -116,6 +121,66 @@ export class SheetsRepo implements Repo {
     });
     await this.invalidate(tab);
     return next as RowOf<T>;
+  }
+
+  private async writeRows(tab: TabName, writes: { rowNumber: number; values: unknown[] }[]): Promise<void> {
+    if (writes.length === 0) return;
+    await this.opts.api.batchUpdate({
+      spreadsheetId: this.opts.sheetId,
+      requestBody: { valueInputOption: "RAW", data: writes.map((w) => ({ range: `${tab}!A${w.rowNumber}`, values: [w.values] })) },
+    });
+    await this.invalidate(tab);
+  }
+
+  async updateMany<T extends TabName>(tab: T, items: { id: string; patch: Partial<RowOf<T>>; expectedVersion?: number }[]): Promise<void> {
+    if (items.length === 0) return;
+    const values = await this.fresh(tab);
+    const header = values[0].map((h) => String(h).trim());
+    // Build (and version-check) every row before writing any of them.
+    const writes = items.map(({ id, patch, expectedVersion }) => {
+      const rowNumber = this.locate(tab, values, id);
+      if (rowNumber === null) throw new NotFoundError(`ไม่พบ ${id} ในแท็บ ${tab}`);
+      const current = this.parse(tab, [values[0], values[rowNumber - 1]])[0] as unknown as AnyRow;
+      const next = applyPatch(tab, current, patch as unknown as AnyRow, expectedVersion);
+      return { rowNumber, values: objectToRow(TABS[tab], header, next) };
+    });
+    await this.writeRows(tab, writes);
+  }
+
+  async listNumbered<T extends TabName>(tab: T): Promise<{ rowNumber: number; row: RowOf<T> }[]> {
+    const values = await this.fresh(tab);
+    const out: { rowNumber: number; row: RowOf<T> }[] = [];
+    for (let i = 1; i < values.length; i++) {
+      const [row] = this.parse(tab, [values[0], values[i]]);
+      if (row) out.push({ rowNumber: i + 1, row });
+    }
+    return out;
+  }
+
+  async updateAt<T extends TabName>(tab: T, items: { rowNumber: number; patch: Partial<RowOf<T>> }[]): Promise<void> {
+    if (items.length === 0) return;
+    const values = await this.fresh(tab);
+    const header = values[0].map((h) => String(h).trim());
+    const writes = items.map(({ rowNumber, patch }) => {
+      const [current] = this.parse(tab, [values[0], values[rowNumber - 1] ?? []]);
+      if (!current) throw new NotFoundError(`ไม่พบแถว ${rowNumber} ในแท็บ ${tab}`);
+      return { rowNumber, values: objectToRow(TABS[tab], header, { ...(current as unknown as AnyRow), ...(patch as unknown as AnyRow) }) };
+    });
+    await this.writeRows(tab, writes);
+  }
+
+  async removeAt(tab: TabName, rowNumbers: number[]): Promise<void> {
+    for (const n of rowNumbers) await this.opts.api.clear({ spreadsheetId: this.opts.sheetId, range: `${tab}!A${n}:${n}` });
+    if (rowNumbers.length) await this.invalidate(tab);
+  }
+
+  async remove(tab: TabName, id: string): Promise<void> {
+    const values = await this.fresh(tab);
+    const rowNum = this.locate(tab, values, id);
+    if (rowNum === null) throw new NotFoundError(`ไม่พบ ${id} ในแท็บ ${tab}`);
+    // Blank the row instead of deleting it so other rows keep their row numbers; blank rows are skipped on read.
+    await this.opts.api.clear({ spreadsheetId: this.opts.sheetId, range: `${tab}!A${rowNum}:${rowNum}` });
+    await this.invalidate(tab);
   }
 
   async invalidate(tab: TabName): Promise<void> {

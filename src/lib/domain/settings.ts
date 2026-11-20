@@ -4,13 +4,23 @@ export interface AppSettings {
   defaultSlaDays: number;
   agingBands: [number, number, number];
   backdateDays: number;
+  /** Whether a transfer out also opens a vacancy at the source branch (spec: to be confirmed). */
+  transferOutCreatesVacancy: boolean;
 }
 
-const DEFAULTS: AppSettings = { defaultSlaDays: 30, agingBands: [30, 60, 90], backdateDays: 3 };
+const DEFAULTS: AppSettings = { defaultSlaDays: 30, agingBands: [30, 60, 90], backdateDays: 3, transferOutCreatesVacancy: true };
 
 function nonNegativeInt(v: string | undefined): number | null {
   if (v === undefined || !/^\s*\d+\s*$/.test(v)) return null;
   return Number(v);
+}
+
+function parseFlag(v: string | undefined): boolean | null {
+  const s = v?.trim().toLowerCase();
+  if (!s) return null;
+  if (["1", "true", "yes", "ใช่"].includes(s)) return true;
+  if (["0", "false", "no", "ไม่"].includes(s)) return false;
+  return null;
 }
 
 function parseBands(v: string | undefined): [number, number, number] | null {
@@ -27,6 +37,7 @@ export function parseSettings(rows: SettingRow[]): AppSettings {
     defaultSlaDays: nonNegativeInt(map.get("default_sla_days")) ?? DEFAULTS.defaultSlaDays,
     agingBands: parseBands(map.get("aging_bands")) ?? DEFAULTS.agingBands,
     backdateDays: nonNegativeInt(map.get("backdate_days")) ?? DEFAULTS.backdateDays,
+    transferOutCreatesVacancy: parseFlag(map.get("transfer_out_creates_vacancy")) ?? DEFAULTS.transferOutCreatesVacancy,
   };
 }
 

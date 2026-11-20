@@ -1,0 +1,60 @@
+import { describe, expect, test } from "vitest";
+import { buildApprovalRows, buildHoldRows } from "@/lib/domain/queues";
+import type { Approval, StatusLogEntry } from "@/lib/domain/types";
+import { branch, positions, req, user } from "./helpers";
+
+const ju = user({ email: "ju@example.com", role: "super_admin", name: "จู" });
+const mind = user({ email: "mind@example.com", name: "มายด์" });
+const north = user({ email: "n@example.com", role: "viewer", scope: "ภาคเหนือ" });
+const branches = [branch({ branch_code: "BKK-012", branch_name: "ลาดพร้าว" }), branch({ branch_code: "CNX-001", region: "ภาคเหนือ" })];
+const users = [ju, mind];
+
+const approval = (p: Partial<Approval> & Pick<Approval, "id" | "req_id">): Approval => ({
+  type: "Hold", reason: "ปรับปรุงร้าน", effective_date: "2026-11-16", evidence_url: "local:x", requested_by: "mind@example.com",
+  requested_at: "2026-11-16T03:00:00Z", status: "Pending", decided_by: "", decided_at: "", decision_note: "", ...p,
+});
+
+describe("buildApprovalRows", () => {
+  const data = {
+    requisitions: [req({ id: "R1", status: "PendingHold" }), req({ id: "R2", status: "PendingCancel", branch_code: "CNX-001" }), req({ id: "R3" })],
+    approvals: [
+      approval({ id: "A2", req_id: "R2", type: "Cancel", requested_at: "2026-11-15T03:00:00Z" }),
+      approval({ id: "A1", req_id: "R1" }),
+      approval({ id: "A3", req_id: "R3", status: "Rejected" }),
+    ],
+    branches,
+    positions,
+    users,
+  };
+
+  test("pending only, oldest request first, joined with branch/position/requester", () => {
+    const rows = buildApprovalRows(data, ju);
+    expect(rows.map((r) => r.id)).toEqual(["A2", "A1"]);
+    expect(rows[1]).toMatchObject({ reqId: "R1", branchName: "ลาดพร้าว", positionName: "Sales", requestedBy: "มายด์", type: "Hold", evidenceRef: "local:x" });
+  });
+
+  test("respects the viewer's scope", () => {
+    expect(buildApprovalRows(data, north).map((r) => r.id)).toEqual(["A2"]);
+  });
+});
+
+describe("buildHoldRows", () => {
+  const log: StatusLogEntry[] = [
+    { id: "L1", req_id: "R1", from_status: "PendingHold", to_status: "Hold", effective_date: "2026-11-01", actor: "", at: "a", note: "", ref_id: "A1" },
+  ];
+  const data = {
+    requisitions: [req({ id: "R1", status: "Hold", request_date: "2026-10-02" }), req({ id: "R2" })],
+    approvals: [approval({ id: "A1", req_id: "R1", status: "Approved", decided_at: "2026-11-01T05:00:00Z", decided_by: "ju@example.com" })],
+    log,
+    branches,
+    positions,
+    users,
+  };
+
+  test("lists Hold requisitions with the frozen TAT, days held, reason and edit right", () => {
+    const rows = buildHoldRows(data, mind, "2026-11-17");
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ reqId: "R1", holdSince: "2026-11-01", tatAtHold: 30, daysHeld: 16, reason: "ปรับปรุงร้าน", canEdit: true, taName: "มายด์", approvedAt: "2026-11-01", approvedBy: "จู" });
+    expect(buildHoldRows(data, user({ email: "x@example.com" }), "2026-11-17")[0].canEdit).toBe(false);
+  });
+});

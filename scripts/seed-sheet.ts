@@ -16,7 +16,7 @@ async function main() {
   }
   const sheets = createSheetsClient();
 
-  for (const [tab, rows] of Object.entries(fixtures) as [TabName, Record<string, unknown>[]][]) {
+  for (const [tab, rows] of Object.entries(fixtures) as unknown as [TabName, Record<string, unknown>[]][]) {
     const header = TABS[tab].columns.map((c) => c.key);
     await sheets.spreadsheets.values.clear({ spreadsheetId, range: `${tab}!A2:ZZ` });
     await sheets.spreadsheets.values.update({

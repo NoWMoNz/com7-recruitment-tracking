@@ -7,7 +7,7 @@ const defaults = parseSettings([]);
 
 describe("parseSettings", () => {
   test("defaults when empty", () => {
-    expect(defaults).toEqual({ defaultSlaDays: 30, agingBands: [30, 60, 90], backdateDays: 3 });
+    expect(defaults).toEqual({ defaultSlaDays: 30, agingBands: [30, 60, 90], backdateDays: 3, transferOutCreatesVacancy: true });
   });
   test("reads values and falls back on invalid ones", () => {
     expect(
@@ -15,8 +15,14 @@ describe("parseSettings", () => {
         { key: "default_sla_days", value: "45" },
         { key: "aging_bands", value: "30,60,90" },
         { key: "backdate_days", value: "x" },
+        { key: "transfer_out_creates_vacancy", value: "maybe" },
       ]),
-    ).toEqual({ defaultSlaDays: 45, agingBands: [30, 60, 90], backdateDays: 3 });
+    ).toEqual({ defaultSlaDays: 45, agingBands: [30, 60, 90], backdateDays: 3, transferOutCreatesVacancy: true });
+  });
+  test("transfer_out_creates_vacancy accepts 0/1 and Thai yes/no", () => {
+    expect(parseSettings([{ key: "transfer_out_creates_vacancy", value: "0" }]).transferOutCreatesVacancy).toBe(false);
+    expect(parseSettings([{ key: "transfer_out_creates_vacancy", value: "ไม่" }]).transferOutCreatesVacancy).toBe(false);
+    expect(parseSettings([{ key: "transfer_out_creates_vacancy", value: "ใช่" }]).transferOutCreatesVacancy).toBe(true);
   });
 });
 

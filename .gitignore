@@ -43,3 +43,8 @@ next-env.d.ts
 # local tooling
 .superpowers/
 !.env.example
+
+# ข้อมูลจริงของบริษัท / ไฟล์ต้นฉบับ ไม่ขึ้น git
+*.xlsx
+*.xls
+/Example/

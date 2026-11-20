@@ -40,6 +40,10 @@ export interface TrackingRow {
   taName: string;
   offerName: string | null;
   offerDate: LocalDate | null;
+  offerChannel: string | null;
+  /** Days on hold up to today (or the offer date); lets the Offer form preview TAT for another date. */
+  holdDays: number;
+  slaDays: number;
   canEdit: boolean;
   version: number;
 }
@@ -91,6 +95,9 @@ export function buildTrackingRows(
       taName: users.get(normalizeEmail(r.ta_email))?.name || r.ta_email,
       offerName: offer ? `${offer.title}${offer.first_name} ${offer.last_name}`.trim() : null,
       offerDate: offer?.offer_date ?? null,
+      offerChannel: offer?.sourcing_channel ?? null,
+      holdDays: held,
+      slaDays: sla,
       canEdit: canEditRequisition(viewer, r),
       version: r.version,
     });

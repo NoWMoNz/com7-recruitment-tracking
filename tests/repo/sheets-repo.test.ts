@@ -16,6 +16,8 @@ class FakeValues implements SheetsValuesApi {
   tabs: Record<string, unknown[][]> = {};
   updates: { range: string; values: unknown[][]; valueInputOption: string }[] = [];
   appends: { range: string; values: unknown[][]; valueInputOption: string }[] = [];
+  clears: string[] = [];
+  batches: { range: string; values: unknown[][] }[][] = [];
   gets: string[] = [];
 
   async get(p: { range: string }) {
@@ -30,6 +32,14 @@ class FakeValues implements SheetsValuesApi {
   }
   async append(p: { range: string; valueInputOption: string; requestBody: { values: unknown[][] } }) {
     this.appends.push({ range: p.range, values: p.requestBody.values, valueInputOption: p.valueInputOption });
+    return {};
+  }
+  async batchUpdate(p: { requestBody: { data: { range: string; values: unknown[][] }[] } }) {
+    this.batches.push(p.requestBody.data);
+    return {};
+  }
+  async clear(p: { range: string }) {
+    this.clears.push(p.range);
     return {};
   }
 }
@@ -103,5 +113,50 @@ describe("SheetsRepo.list / getFresh", () => {
   test("getFresh returns one row or null", async () => {
     expect((await repo.getFresh("Requisitions", "REQ-2"))?.version).toBe(1);
     expect(await repo.getFresh("Requisitions", "REQ-9")).toBeNull();
+  });
+});
+
+describe("SheetsRepo.remove", () => {
+  test("blanks the matching row and invalidates the tab", async () => {
+    await repo.remove("Requisitions", "REQ-1");
+    expect(api.clears).toEqual(["Requisitions!A4:4"]);
+    expect(invalidated).toContain("Requisitions");
+  });
+
+  test("unknown id is not found", async () => {
+    await expect(repo.remove("Requisitions", "NOPE")).rejects.toBeInstanceOf(NotFoundError);
+    expect(api.clears).toEqual([]);
+  });
+});
+
+describe("SheetsRepo batch writes", () => {
+  test("updateMany writes every row in one batch and bumps versions", async () => {
+    await repo.updateMany("Requisitions", [
+      { id: "REQ-1", patch: { status: "Offer" }, expectedVersion: 2 },
+      { id: "REQ-2", patch: { status: "Hold" }, expectedVersion: 1 },
+    ]);
+    expect(api.batches).toHaveLength(1);
+    expect(api.batches[0].map((d) => d.range)).toEqual(["Requisitions!A4", "Requisitions!A5"]);
+    expect(api.batches[0][0].values[0][header.indexOf("version")]).toBe(3);
+    expect(invalidated).toContain("Requisitions");
+  });
+
+  test("updateMany writes nothing when one version is stale", async () => {
+    await expect(
+      repo.updateMany("Requisitions", [
+        { id: "REQ-1", patch: { status: "Offer" }, expectedVersion: 2 },
+        { id: "REQ-2", patch: { status: "Hold" }, expectedVersion: 9 },
+      ]),
+    ).rejects.toBeInstanceOf(ConflictError);
+    expect(api.batches).toEqual([]);
+  });
+
+  test("listNumbered keeps real row numbers across blank rows; updateAt patches by row number", async () => {
+    const rows = await repo.listNumbered("Requisitions");
+    expect(rows.map((r) => [r.rowNumber, r.row.id])).toEqual([[2, "REQ-3"], [4, "REQ-1"], [5, "REQ-2"]]);
+    await repo.updateAt("Requisitions", [{ rowNumber: 4, patch: { source_ref: "x" } }]);
+    expect(api.batches[0][0].range).toBe("Requisitions!A4");
+    expect(api.batches[0][0].values[0][header.indexOf("source_ref")]).toBe("x");
+    expect(api.batches[0][0].values[0][header.indexOf("version")]).toBe(2);
   });
 });

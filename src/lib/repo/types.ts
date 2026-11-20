@@ -1,10 +1,20 @@
 import type {
+  Approval,
   Branch,
+  ImportInitial,
+  ImportNewEmployee,
+  ImportRequisition,
+  ImportResign,
+  ImportTransfer,
+  MonthlySnapshot,
+  NewHire,
+  ReviewItem,
   Offer,
   Position,
   Requisition,
   SettingRow,
   StatusLogEntry,
+  Turndown,
   User,
 } from "@/lib/domain/types";
 import type { TabName } from "@/lib/sheets/schema";
@@ -24,6 +34,16 @@ interface RowMap {
   Requisitions: Requisition;
   Requisitions_Archive: Requisition;
   Offers: Offer;
+  Turndowns: Turndown;
+  Approvals: Approval;
+  NewHires: NewHire;
+  ReviewQueue: ReviewItem;
+  MonthlySnapshots: MonthlySnapshot;
+  Import_Initial: ImportInitial;
+  Import_Requisition: ImportRequisition;
+  Import_Resign: ImportResign;
+  Import_Transfer: ImportTransfer;
+  Import_NewEmployee: ImportNewEmployee;
   StatusLog: StatusLogEntry;
   StatusLog_Archive: StatusLogEntry;
   Branches: Branch;
@@ -60,5 +80,18 @@ export interface Repo {
   append<T extends TabName>(tab: T, rows: RowOf<T>[]): Promise<void>;
   /** Throws ConflictError when expectedVersion is given and stale; NotFoundError when id is missing. */
   update<T extends TabName>(tab: T, id: string, patch: Partial<RowOf<T>>, expectedVersion?: number): Promise<RowOf<T>>;
+  /**
+   * Several patches to one tab in a single write. Every expectedVersion is checked before anything is
+   * written; one stale row throws ConflictError and nothing changes. Throws NotFoundError for a missing id.
+   */
+  updateMany<T extends TabName>(tab: T, items: { id: string; patch: Partial<RowOf<T>>; expectedVersion?: number }[]): Promise<void>;
+  /** Rows with their sheet row number (header = row 1), for tabs without an id column such as Import_*. */
+  listNumbered<T extends TabName>(tab: T): Promise<{ rowNumber: number; row: RowOf<T> }[]>;
+  /** Patches rows by sheet row number in a single write (used to mark Import rows processed). */
+  updateAt<T extends TabName>(tab: T, items: { rowNumber: number; patch: Partial<RowOf<T>> }[]): Promise<void>;
+  /** Removes rows by sheet row number (tabs without an id column). Sheet rows are blanked, not shifted. */
+  removeAt(tab: TabName, rowNumbers: number[]): Promise<void>;
+  /** Removes the row with this id (a Sheet row is blanked, not shifted). Throws NotFoundError when missing. */
+  remove(tab: TabName, id: string): Promise<void>;
   invalidate(tab: TabName): Promise<void>;
 }

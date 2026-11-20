@@ -7,9 +7,12 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-sans);
+  --font-sans: var(--font-noto), var(--font-noto-thai), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono);
   --font-heading: var(--font-sans);
+  --color-brand: var(--brand-green);
+  --color-ink-chip: var(--ink-chip);
+  --color-brand-grey: var(--brand-grey);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -49,38 +52,46 @@
 }
 
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
+  /* Com7 brand: grey wordmark, green "7", pale yellow/blue sky wash */
+  --brand-green: #5eb047;
+  --brand-grey: #848486;
+  --ink-chip: #1c231e;
+  --wash-warm: #f3efcf;
+  --wash-cool: #e2e9f2;
+  --wash-lilac: #ebe9f1;
+
+  --background: #ffffff;
+  --foreground: #2a302b;
+  --card: #ffffff;
+  --card-foreground: #2a302b;
+  --popover: #ffffff;
+  --popover-foreground: #2a302b;
+  --primary: #2a8638; /* brand green darkened to pass 4.5:1 with white text */
+  --primary-foreground: #ffffff;
+  --secondary: #eef0e9;
+  --secondary-foreground: #3a403b;
+  --muted: #f1f2ec;
+  --muted-foreground: #646a65;
+  --accent: #e7f3e4;
+  --accent-foreground: #1e5a2a;
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+  --border: #e2e5db;
+  --input: #d6dacf;
+  --ring: #4cb648;
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --radius: 0.875rem;
+  --sidebar: #fbfbf7;
+  --sidebar-foreground: #2a302b;
+  --sidebar-primary: #2a8638;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #e7f3e4;
+  --sidebar-accent-foreground: #1e5a2a;
+  --sidebar-border: #e2e5db;
+  --sidebar-ring: #4cb648;
 }
 
 .dark {
@@ -121,10 +132,146 @@
   * {
     @apply border-border outline-ring/50;
   }
+  /*
+   * Slim scrollbars: a rounded thumb, no arrow buttons, no track. Done with the webkit pieces because the standard
+   * `scrollbar-width: thin` still draws the arrows on Windows. Firefox gets the standard properties instead.
+   */
+  *::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  *::-webkit-scrollbar-track,
+  *::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+  *::-webkit-scrollbar-thumb {
+    background: rgb(0 0 0 / 0.28);
+    background-clip: padding-box;
+    border: 3px solid transparent;
+    border-radius: 999px;
+  }
+  *::-webkit-scrollbar-thumb:hover {
+    background: rgb(0 0 0 / 0.45);
+    background-clip: padding-box;
+  }
+  *::-webkit-scrollbar-button {
+    display: none;
+    width: 0;
+    height: 0;
+  }
+  @supports not selector(::-webkit-scrollbar) {
+    * {
+      scrollbar-width: thin;
+      scrollbar-color: rgb(0 0 0 / 0.28) transparent;
+    }
+  }
   body {
     @apply bg-background text-foreground;
   }
   html {
     @apply font-sans;
+  }
+}
+/* Liquid glass: a milky, translucent body whose rim and inner folds refract light into soft spectral colour. */
+.liquid-glass {
+  isolation: isolate;
+  background:
+    /* High-gloss: one broad, curved specular band across the top, then an even milky body. */
+    radial-gradient(130% 48% at 50% -8%, rgb(255 255 255 / 0.95) 0%, rgb(255 255 255 / 0) 100%),
+    radial-gradient(100% 60% at 50% 112%, rgb(255 255 255 / 0.6) 0%, rgb(255 255 255 / 0) 100%),
+    linear-gradient(180deg, rgb(255 255 255 / 0.66), rgb(250 251 255 / 0.5));
+  backdrop-filter: blur(28px) saturate(1.8) brightness(1.04);
+  -webkit-backdrop-filter: blur(28px) saturate(1.8) brightness(1.04);
+  /* Soft, even light: tinted glow instead of a hard drop shadow. */
+  box-shadow:
+    inset 0 2px 3px rgb(255 255 255 / 1),
+    inset 0 -24px 44px rgb(255 255 255 / 0.6),
+    inset 14px 0 36px -16px rgb(150 215 255 / 0.3),
+    inset -14px 0 36px -16px rgb(255 175 230 / 0.26),
+    0 30px 70px -28px rgb(140 150 220 / 0.3);
+}
+/* Prismatic rim: a thin spectral edge, brightest along the lit side. */
+.liquid-glass::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  padding: 1.5px;
+  background: conic-gradient(
+    from 210deg at 50% 50%,
+    rgb(120 220 255 / 0.9),
+    rgb(170 150 255 / 0.85),
+    rgb(255 160 225 / 0.85),
+    rgb(255 225 150 / 0.8),
+    rgb(160 245 200 / 0.85),
+    rgb(120 220 255 / 0.9)
+  );
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  pointer-events: none;
+}
+/* Refraction folds: blurred spectral bands drifting under the surface, like the swirl inside a glass sphere. */
+.liquid-glass::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background:
+    radial-gradient(60% 40% at 6% 24%, rgb(150 225 255 / 0.42), transparent 72%),
+    radial-gradient(50% 36% at 98% 38%, rgb(255 185 235 / 0.36), transparent 72%),
+    radial-gradient(54% 32% at 72% 100%, rgb(205 185 255 / 0.34), transparent 72%),
+    radial-gradient(44% 28% at 18% 98%, rgb(255 240 185 / 0.34), transparent 72%),
+    radial-gradient(40% 24% at 60% 6%, rgb(190 245 225 / 0.3), transparent 72%);
+  filter: blur(18px);
+  opacity: 0.9;
+  pointer-events: none;
+}
+.liquid-glass-tile {
+  background: linear-gradient(180deg, rgb(255 255 255 / 0.85), rgb(255 255 255 / 0.48));
+  backdrop-filter: blur(10px) saturate(1.6);
+  -webkit-backdrop-filter: blur(10px) saturate(1.6);
+  box-shadow:
+    inset 0 2px 2px rgb(255 255 255 / 1),
+    inset 0 0 0 1px rgb(255 255 255 / 0.65),
+    inset 8px 0 16px -10px rgb(150 215 255 / 0.4),
+    inset -8px 0 16px -10px rgb(255 175 230 / 0.35),
+    0 10px 22px -12px rgb(140 150 220 / 0.3);
+}
+/* Pastel iridescent bead for icons: replaces dark chips so the card stays light. */
+.liquid-glass-chip {
+  background:
+    radial-gradient(80% 60% at 30% 18%, rgb(255 255 255 / 0.95), transparent 70%),
+    conic-gradient(from 200deg, #bfeaff, #d4c6ff, #ffc9ec, #fff0bf, #c8f5df, #bfeaff);
+  box-shadow:
+    inset 0 1px 2px rgb(255 255 255 / 1),
+    inset 0 -4px 8px rgb(255 255 255 / 0.5),
+    0 6px 14px -6px rgb(150 150 230 / 0.5);
+}
+/* Dashboard: text that changes with what the pointer is on fades in instead of snapping; a province swells up from rest. */
+@keyframes sum-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+@keyframes map-pop {
+  from {
+    transform: scale(1);
+    opacity: 0.35;
+  }
+}
+.sum-in {
+  animation: sum-in 280ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.map-pop {
+  animation: map-pop 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .sum-in,
+  .map-pop {
+    animation: none;
   }
 }

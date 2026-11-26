@@ -2,7 +2,7 @@ import "server-only";
 import { sheetId, sheetsValuesApi } from "@/lib/sheets/client";
 import { fixtures } from "./fixtures";
 import { MemoryRepo } from "./memory-repo";
-import { invalidateTab, readTabCached } from "./next-cache";
+import { invalidateTab, readTabsCached } from "./next-cache";
 import { SheetsRepo } from "./sheets-repo";
 import type { Repo } from "./types";
 
@@ -21,7 +21,7 @@ export function getRepo(): Repo {
         ? new SheetsRepo({
             api: sheetsValuesApi(),
             sheetId: sheetId(),
-            readCached: readTabCached,
+            readCachedMany: readTabsCached,
             invalidate: invalidateTab,
           })
         : new MemoryRepo(fixtures);

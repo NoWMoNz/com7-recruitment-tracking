@@ -11,6 +11,13 @@ export interface SheetsValuesApi {
     valueRenderOption?: string;
     dateTimeRenderOption?: string;
   }): Promise<{ data: { values?: unknown[][] | null } }>;
+  /** Several ranges in one request; Google counts it as a single read against the per-minute quota. */
+  batchGet(params: {
+    spreadsheetId: string;
+    ranges: string[];
+    valueRenderOption?: string;
+    dateTimeRenderOption?: string;
+  }): Promise<{ data: { valueRanges?: { values?: unknown[][] | null }[] | null } }>;
   update(params: {
     spreadsheetId: string;
     range: string;
@@ -34,29 +41,123 @@ export interface SheetsValuesApi {
 export interface SheetsRepoOptions {
   api: SheetsValuesApi;
   sheetId: string;
-  /** Cached reader for list(); defaults to a direct read. */
-  readCached?: (tab: TabName) => Promise<unknown[][]>;
+  /** Cached reader for list(): the values of each tab asked for (sorted, no repeats), in that order. Defaults to a direct read. */
+  readCachedMany?: (tabs: TabName[]) => Promise<unknown[][][]>;
   /** Cache invalidation hook; defaults to no-op. */
   invalidate?: (tab: TabName) => Promise<void>;
 }
 
 type AnyRow = Record<string, unknown>;
 
-export async function fetchTabValues(api: SheetsValuesApi, sheetId: string, tab: TabName): Promise<unknown[][]> {
-  const res = await api.get({
-    spreadsheetId: sheetId,
-    range: `${tab}!A:ZZ`,
-    valueRenderOption: "UNFORMATTED_VALUE",
-    dateTimeRenderOption: "SERIAL_NUMBER",
-  });
-  return res.data.values ?? [];
+const READ_OPTIONS = { valueRenderOption: "UNFORMATTED_VALUE", dateTimeRenderOption: "SERIAL_NUMBER" } as const;
+
+/** Whole tabs in one request: one tab is a plain get, several are one batchGet. Either costs one read of the quota. */
+export async function fetchTabsValues(api: SheetsValuesApi, sheetId: string, tabs: TabName[]): Promise<unknown[][][]> {
+  if (tabs.length === 1) {
+    const res = await api.get({ spreadsheetId: sheetId, range: `${tabs[0]}!A:ZZ`, ...READ_OPTIONS });
+    return [res.data.values ?? []];
+  }
+  const res = await api.batchGet({ spreadsheetId: sheetId, ranges: tabs.map((t) => `${t}!A:ZZ`), ...READ_OPTIONS });
+  const ranges = res.data.valueRanges ?? [];
+  return tabs.map((_, i) => ranges[i]?.values ?? []);
+}
+
+interface Waiter {
+  resolve: (values: unknown[][]) => void;
+  reject: (e: unknown) => void;
+}
+
+/**
+ * Collects the tabs asked for in the same tick (every page asks for its tabs in one Promise.all) and reads
+ * them with one call of `read`. A microtask, not a timer, so prerendering still sees the read as immediate.
+ * Google refuses a whole batch that names a tab the sheet lacks, so a refused batch is read again tab by tab
+ * and only the caller of the missing tab gets the error. With `shareInFlight`, a tab already being read is
+ * not read again by a later batch (used for cached reads: the layout's pieces ask for Users a moment apart).
+ */
+class TabBatcher {
+  private queue = new Map<TabName, Waiter[]>();
+  private scheduled = false;
+  private inFlight = new Map<TabName, Promise<unknown[][]>>();
+
+  constructor(
+    private readonly read: (tabs: TabName[]) => Promise<unknown[][][]>,
+    private readonly shareInFlight: boolean,
+  ) {}
+
+  load(tab: TabName): Promise<unknown[][]> {
+    const running = this.shareInFlight ? this.inFlight.get(tab) : undefined;
+    if (running) return running;
+    const promise = new Promise<unknown[][]>((resolve, reject) => {
+      const waiters = this.queue.get(tab) ?? [];
+      waiters.push({ resolve, reject });
+      this.queue.set(tab, waiters);
+    });
+    if (this.shareInFlight && !this.inFlight.has(tab)) {
+      this.inFlight.set(tab, promise);
+      const clear = () => {
+        if (this.inFlight.get(tab) === promise) this.inFlight.delete(tab);
+      };
+      promise.then(clear, clear);
+    }
+    if (!this.scheduled) {
+      this.scheduled = true;
+      queueMicrotask(() => void this.flush());
+    }
+    return promise;
+  }
+
+  /** After a write: later reads of this tab must not join a read that started before it. */
+  forget(tab: TabName): void {
+    this.inFlight.delete(tab);
+  }
+
+  private async flush(): Promise<void> {
+    const batch = this.queue;
+    this.queue = new Map();
+    this.scheduled = false;
+    const tabs = [...batch.keys()].sort();
+    const settle = (tab: TabName, values: unknown[][] | null, error?: unknown) => {
+      for (const w of batch.get(tab) ?? []) {
+        if (values) w.resolve(values);
+        else w.reject(error);
+      }
+    };
+    try {
+      const values = await this.read(tabs);
+      tabs.forEach((t, i) => settle(t, values[i] ?? []));
+    } catch (e) {
+      if (tabs.length === 1 || !(e instanceof Error && /unable to parse range/i.test(e.message))) {
+        tabs.forEach((t) => settle(t, null, e));
+        return;
+      }
+      await Promise.all(
+        tabs.map((t) =>
+          this.read([t]).then(
+            ([values]) => settle(t, values ?? []),
+            (err: unknown) => settle(t, null, err),
+          ),
+        ),
+      );
+    }
+  }
 }
 
 export class SheetsRepo implements Repo {
-  constructor(private readonly opts: SheetsRepoOptions) {}
+  private readonly freshReads: TabBatcher;
+  private readonly cachedReads: TabBatcher;
+
+  constructor(private readonly opts: SheetsRepoOptions) {
+    const direct = (tabs: TabName[]) => fetchTabsValues(opts.api, opts.sheetId, tabs);
+    this.freshReads = new TabBatcher(direct, false);
+    this.cachedReads = new TabBatcher(opts.readCachedMany ?? direct, true);
+  }
 
   private fresh(tab: TabName): Promise<unknown[][]> {
-    return fetchTabValues(this.opts.api, this.opts.sheetId, tab);
+    return this.freshReads.load(tab);
+  }
+
+  private cached(tab: TabName): Promise<unknown[][]> {
+    return this.opts.readCachedMany ? this.cachedReads.load(tab) : this.fresh(tab);
   }
 
   private parse<T extends TabName>(tab: T, values: unknown[][]): RowOf<T>[] {
@@ -75,8 +176,7 @@ export class SheetsRepo implements Repo {
   }
 
   async list<T extends TabName>(tab: T): Promise<RowOf<T>[]> {
-    const values = this.opts.readCached ? await this.opts.readCached(tab) : await this.fresh(tab);
-    return this.parse(tab, values);
+    return this.parse(tab, await this.cached(tab));
   }
 
   async getFresh<T extends TabName>(tab: T, id: string): Promise<RowOf<T> | null> {
@@ -150,7 +250,7 @@ export class SheetsRepo implements Repo {
   }
 
   async listNumbered<T extends TabName>(tab: T, opts?: { cached?: boolean }): Promise<{ rowNumber: number; row: RowOf<T> }[]> {
-    const values = opts?.cached && this.opts.readCached ? await this.opts.readCached(tab) : await this.fresh(tab);
+    const values = opts?.cached ? await this.cached(tab) : await this.fresh(tab);
     const out: { rowNumber: number; row: RowOf<T> }[] = [];
     for (let i = 1; i < values.length; i++) {
       const [row] = this.parse(tab, [values[0], values[i]]);
@@ -205,6 +305,7 @@ export class SheetsRepo implements Repo {
   }
 
   async invalidate(tab: TabName): Promise<void> {
+    this.cachedReads.forget(tab);
     await this.opts.invalidate?.(tab);
   }
 }

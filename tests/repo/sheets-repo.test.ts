@@ -19,9 +19,22 @@ class FakeValues implements SheetsValuesApi {
   clears: string[] = [];
   batches: { range: string; values: unknown[][] }[][] = [];
   gets: string[] = [];
+  batchGets: string[][] = [];
+  /** Tabs the spreadsheet does not have: Google refuses any request that names one. */
+  missing = new Set<string>();
 
+  private refuseMissing(range: string) {
+    if (this.missing.has(range.split("!")[0])) throw new Error(`Unable to parse range: ${range}`);
+  }
+
+  async batchGet(p: { ranges: string[] }) {
+    this.batchGets.push(p.ranges);
+    p.ranges.forEach((r) => this.refuseMissing(r));
+    return { data: { valueRanges: p.ranges.map((r) => ({ range: r, values: this.tabs[r.split("!")[0]] ?? [] })) } };
+  }
   async get(p: { range: string }) {
     this.gets.push(p.range);
+    this.refuseMissing(p.range);
     const tab = p.range.split("!")[0];
     const values = this.tabs[tab] ?? [];
     return { data: { values: p.range.endsWith("!1:1") ? values.slice(0, 1) : values } };
@@ -113,6 +126,89 @@ describe("SheetsRepo.list / getFresh", () => {
   test("getFresh returns one row or null", async () => {
     expect((await repo.getFresh("Requisitions", "REQ-2"))?.version).toBe(1);
     expect(await repo.getFresh("Requisitions", "REQ-9")).toBeNull();
+  });
+});
+
+describe("SheetsRepo reads tabs asked for together in one request (Sheets allows 60 reads a minute)", () => {
+  beforeEach(() => {
+    api.tabs.Users = [TABS.Users.columns.map((c) => c.key)];
+  });
+
+  test("list() calls made together cost one batchGet", async () => {
+    const [users, reqs] = await Promise.all([repo.list("Users"), repo.list("Requisitions")]);
+    expect(reqs.map((r) => r.id)).toEqual(["REQ-3", "REQ-1", "REQ-2"]);
+    expect(users).toEqual([]);
+    expect(api.batchGets).toEqual([["Requisitions!A:ZZ", "Users!A:ZZ"]]);
+    expect(api.gets).toEqual([]);
+  });
+
+  test("a tab asked for twice is read once", async () => {
+    await Promise.all([repo.list("Requisitions"), repo.list("Users"), repo.list("Requisitions")]);
+    expect(api.batchGets).toEqual([["Requisitions!A:ZZ", "Users!A:ZZ"]]);
+  });
+
+  test("a tab read on its own still uses a plain get", async () => {
+    await repo.list("Requisitions");
+    expect(api.gets).toEqual(["Requisitions!A:ZZ"]);
+    expect(api.batchGets).toEqual([]);
+  });
+
+  test("a missing tab fails only its own caller", async () => {
+    api.missing.add("Logins");
+    const [reqs, logins] = await Promise.allSettled([repo.list("Requisitions"), repo.list("Logins")]);
+    expect(reqs.status).toBe("fulfilled");
+    expect(logins.status).toBe("rejected");
+    expect(String((logins as PromiseRejectedResult).reason)).toMatch(/unable to parse range/i);
+  });
+
+  test("fresh listNumbered() calls made together are batched too", async () => {
+    await Promise.all([repo.listNumbered("Requisitions"), repo.listNumbered("Users")]);
+    expect(api.batchGets).toHaveLength(1);
+    expect(api.gets).toEqual([]);
+  });
+
+  test("cached reads ask the cache once, for the sorted set of tabs", async () => {
+    const asked: string[][] = [];
+    const cachedRepo = new SheetsRepo({
+      api,
+      sheetId: "x",
+      readCachedMany: async (tabs) => {
+        asked.push([...tabs]);
+        return tabs.map((t) => api.tabs[t] ?? []);
+      },
+    });
+    const [users, reqs] = await Promise.all([cachedRepo.list("Users"), cachedRepo.list("Requisitions")]);
+    expect(users).toEqual([]);
+    expect(reqs).toHaveLength(3);
+    expect(asked).toEqual([["Requisitions", "Users"]]);
+    expect(api.gets).toEqual([]);
+    expect(api.batchGets).toEqual([]);
+  });
+
+  test("a cached read asked for while the same tab is being read joins it; after a save it reads again", async () => {
+    const asked: string[][] = [];
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    const cachedRepo = new SheetsRepo({
+      api,
+      sheetId: "x",
+      readCachedMany: async (tabs) => {
+        asked.push([...tabs]);
+        await gate;
+        return tabs.map((t) => api.tabs[t] ?? []);
+      },
+    });
+    const first = cachedRepo.list("Users");
+    await Promise.resolve();
+    await Promise.resolve();
+    const second = cachedRepo.list("Users");
+    release();
+    await Promise.all([first, second]);
+    expect(asked).toEqual([["Users"]]);
+
+    await cachedRepo.invalidate("Users");
+    await cachedRepo.list("Users");
+    expect(asked).toEqual([["Users"], ["Users"]]);
   });
 });
 

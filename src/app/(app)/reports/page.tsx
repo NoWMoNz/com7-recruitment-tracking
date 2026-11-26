@@ -11,7 +11,7 @@ import type { Status } from "@/lib/domain/types";
 import { RecomputeButton, ReportFilters } from "./report-controls";
 import { reportQuery } from "./report-href";
 
-const TITLE = "Reports";
+const TITLE = "Report";
 const DESCRIPTION = "สรุปราย TA, Hired และ Turndown ตามช่วงวันที่ที่เลือก และประวัติของแต่ละตำแหน่ง export เป็น Excel ได้ทุกตาราง";
 
 const TABS: { tab: ReportTab; label: string }[] = [
@@ -161,6 +161,8 @@ function Weekly({ r }: { r: ReportResult }) {
       </section>
       <div className="grid gap-4 lg:grid-cols-2">
         <Groups title="แยกตาม TA" groups={w.groups.taName} />
+        <Groups title="แยกตาม AM" groups={w.groups.am} />
+        <Groups title="แยกตาม RM" groups={w.groups.rm} />
         <Groups title="แยกตามภาค" groups={w.groups.region} />
         <Groups title="แยกตามตำแหน่ง" groups={w.groups.positionName} />
         <Groups title="แยกตาม Sourcing Channel" groups={w.groups.channel} />
@@ -271,6 +273,8 @@ async function ReportsContent({ searchParams }: { searchParams: Promise<Record<s
     branch: params.branch,
     position: params.position,
     ta: params.ta,
+    am: params.am,
+    rm: params.rm,
     all: range.all ? "1" : undefined,
     from: range.all ? undefined : range.first,
     to: range.all ? undefined : range.last,

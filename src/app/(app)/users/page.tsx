@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { ExportLink } from "@/components/export-link";
 import { PageHeader } from "@/components/page-header";
 import { getSessionUser } from "@/lib/auth/session-user";
 import { keyOf, ROLES } from "@/lib/domain/master";
@@ -61,7 +62,7 @@ async function UsersContent() {
 export default function UsersPage() {
   return (
     <div className="space-y-4">
-      <PageHeader title={TITLE} description={DESCRIPTION} />
+      <PageHeader title={TITLE} description={DESCRIPTION} actions={<ExportLink href="/api/export/master?tab=Users" />} />
       <Suspense fallback={<p className="py-12 text-center text-muted-foreground">กำลังโหลดข้อมูล…</p>}>
         <UsersContent />
       </Suspense>

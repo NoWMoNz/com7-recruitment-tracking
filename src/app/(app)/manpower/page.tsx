@@ -8,8 +8,8 @@ import { ManpowerView } from "./manpower-view";
 async function ManpowerContent() {
   const user = await getSessionUser();
   const repo = getRepo();
-  const [quota, requisitions, branches, positions] = await Promise.all([repo.list("Quota"), repo.list("Requisitions"), repo.list("Branches"), repo.list("Positions")]);
-  const { rows, closedBranches } = buildManpowerRows({ quota, requisitions, branches, positions }, user, todayBangkok());
+  const [quota, requisitions, branches, positions, assignments, users] = await Promise.all([repo.list("Quota"), repo.list("Requisitions"), repo.list("Branches"), repo.list("Positions"), repo.list("RecruiterAssignments"), repo.list("Users")]);
+  const { rows, closedBranches } = buildManpowerRows({ quota, requisitions, branches, positions, assignments, users }, user, todayBangkok());
   // The date of HR's report, so people know how old the figures are.
   const reportDate = quota.map((l) => l.report_date).filter(Boolean).sort().at(-1) ?? null;
   return <ManpowerView rows={rows} closedBranches={closedBranches} reportDate={reportDate} isAdmin={user.role === "super_admin"} />;

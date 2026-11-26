@@ -19,6 +19,11 @@ describe("validateMaster", () => {
     expect(!bad.ok && Object.keys(bad.errors).sort()).toEqual(["branch_code", "branch_name", "close_date", "region"]);
   });
 
+  test("branch: keeps AM and RM, trimmed", () => {
+    const ok = validateMaster("Branches", { branch_code: "A1", branch_name: "x", region: "ภาคกลาง", status: "Open", am: " โชคชัย ", rm: "ฐกรกฤตย์" }, ctx());
+    expect(ok.ok && ok.value).toMatchObject({ am: "โชคชัย", rm: "ฐกรกฤตย์" });
+  });
+
   test("editing keeps the original key and doesn't clash with itself", () => {
     const r = validateMaster("Branches", { branch_code: "OTHER", branch_name: "x", region: "ภาคกลาง" }, ctx({ originalKey: "BKK-012", existingKeys: new Set(["BKK-012"]) }));
     expect(r.ok && r.value.branch_code).toBe("BKK-012");

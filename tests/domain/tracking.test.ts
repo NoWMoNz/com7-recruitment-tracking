@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { buildTrackingRows, type TrackingData } from "@/lib/domain/tracking";
+import { buildTrackingRows, filterTrackingRows, type TrackingData } from "@/lib/domain/tracking";
 import { parseSettings } from "@/lib/domain/settings";
 import { branch, noLog, offer, positions, req, user } from "./helpers";
 
@@ -51,6 +51,34 @@ describe("buildTrackingRows", () => {
   test("offered row stops TAT at offer date", () => {
     const o = buildTrackingRows(data(), ju, today, { mineOnly: false }).find((r) => r.id === "O1")!;
     expect(o).toMatchObject({ tat: 18, tatResult: "Meet", offerName: "นายสมชาย ใจดี", offerDate: "2026-10-20", agingBand: null });
+  });
+
+  test("rows carry their branch's AM and RM; an unknown branch has none", () => {
+    const d = data({ branches: [branch({ branch_code: "BKK-012", am: "ก", rm: "R" })] });
+    const rows = buildTrackingRows(d, ju, today, { mineOnly: false });
+    expect(rows.find((r) => r.id === "V1")).toMatchObject({ am: "ก", rm: "R" });
+    expect(rows.find((r) => r.id === "N1")).toMatchObject({ am: "", rm: "" });
+  });
+
+  test("an offered row carries the Offer for editing: start date, edit window, and the phone only for people who can edit", () => {
+    const d = data({ offers: [offer({ id: "OF1", req_id: "O1", offer_date: "2026-10-20", phone: "0812345678", planned_start_date: "2026-11-01", created_at: "2026-10-20T03:00:00.000Z" })] });
+    const o = buildTrackingRows(d, ju, today, { mineOnly: false }).find((r) => r.id === "O1")!;
+    expect(o.offer).toEqual({ title: "นาย", firstName: "สมชาย", lastName: "ใจดี", phone: "0812345678", channel: "JobThai", startDate: "2026-11-01", editableUntil: "2026-10-20T05:00:00.000Z" });
+    expect(o.startOverdue).toBe(true);
+    expect(buildTrackingRows(d, boss, today, { mineOnly: false }).find((r) => r.id === "O1")!.offer?.phone).toBe("");
+    expect(buildTrackingRows(d, ju, today, { mineOnly: false }).find((r) => r.id === "V1")).toMatchObject({ offer: null, startOverdue: false });
+  });
+
+  test("filterTrackingRows: the page's filters, so the export matches the screen", () => {
+    const d = data({ branches: [branch({ branch_code: "BKK-012", branch_name: "เซ็นทรัลลาดพร้าว", region: "ภาคกลาง", am: "ก" }), branch({ branch_code: "CNX-001", branch_name: "เซ็นทรัลเฟสติวัล", region: "ภาคเหนือ", province: "เชียงใหม่" })] });
+    const rows = buildTrackingRows(d, ju, today, { mineOnly: false });
+    expect(byId(filterTrackingRows(rows, { status: "Pending" }))).toEqual(["PC", "PH"]);
+    expect(byId(filterTrackingRows(rows, { status: "Offer" }))).toEqual(["O1"]);
+    expect(byId(filterTrackingRows(rows, { region: "ภาคเหนือ" }))).toEqual(["N1"]);
+    expect(byId(filterTrackingRows(rows, { q: "เฟสติวัล" }))).toEqual(["N1"]);
+    expect(byId(filterTrackingRows(rows, { am: "ก", band: "orange", status: "Vacancy" }))).toEqual(["V1"]);
+    expect(byId(filterTrackingRows(rows, { from: "2026-11-01", to: "2026-11-30" }))).toEqual(["U1"]);
+    expect(filterTrackingRows(rows, {})).toHaveLength(rows.length);
   });
 
   test("upcoming vacancy is flagged with zero TAT", () => {

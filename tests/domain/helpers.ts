@@ -10,7 +10,7 @@ export function req(p: Partial<Requisition> & Pick<Requisition, "id">): Requisit
 
 export function branch(p: Partial<Branch> & Pick<Branch, "branch_code">): Branch {
   return { branch_name: p.branch_code, brand: "Studio7", bu: "Apple", province: "กรุงเทพฯ", region: "ภาคกลาง", status: "Open",
-    open_date: null, close_date: null, ...p };
+    open_date: null, close_date: null, am: "", rm: "", ...p };
 }
 
 export function user(p: Partial<User> & Pick<User, "email">): User {
@@ -19,7 +19,7 @@ export function user(p: Partial<User> & Pick<User, "email">): User {
 
 export function offer(p: Partial<Offer> & Pick<Offer, "id" | "req_id">): Offer {
   return { title: "นาย", first_name: "สมชาย", last_name: "ใจดี", phone: "", offer_date: "2026-10-20",
-    sourcing_channel: "JobThai", tat_at_offer: 0, ta_email: "mind@example.com", created_by: "", created_at: "", ...p };
+    sourcing_channel: "JobThai", tat_at_offer: 0, ta_email: "mind@example.com", created_by: "", created_at: "", planned_start_date: null, ...p };
 }
 
 export const positions: Position[] = [

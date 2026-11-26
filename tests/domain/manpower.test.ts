@@ -10,12 +10,14 @@ const north = user({ email: "north@example.com", role: "viewer", scope: "ภา�
 const line = (branch_code: string, position_code: string, quota: number, actual: number): QuotaLine => ({ branch_code, position_code, quota, actual, report_date: "2026-11-11" });
 
 const branches = [
-  branch({ branch_code: "A", branch_name: "สาขา A", bu: "Apple", region: "ภาคกลาง" }),
+  branch({ branch_code: "A", branch_name: "สาขา A", bu: "Apple", region: "ภาคกลาง", am: "ก", rm: "R" }),
   branch({ branch_code: "B", branch_name: "สาขา B", bu: "BaNANA", region: "ภาคเหนือ" }),
   branch({ branch_code: "C", branch_name: "สาขา C", bu: "Apple", region: "ภาคกลาง" }),
   branch({ branch_code: "Z", branch_name: "สาขาปิด", region: "ภาคกลาง", status: "Closed", close_date: "2026-10-01" }),
 ];
-const data = (quota: QuotaLine[], requisitions: Requisition[] = []) => ({ quota, requisitions, branches, positions });
+const ploy = user({ email: "ploy@example.com" });
+const assignments = [{ branch_code: "A", position_group: "", ta_email: "ploy@example.com" }];
+const data = (quota: QuotaLine[], requisitions: Requisition[] = []) => ({ quota, requisitions, branches, positions, assignments, users: [ju, ploy] });
 const sales = (id: string, p: Partial<Requisition> = {}) => req({ id, branch_code: "A", position_code: "SALES", ...p });
 
 describe("buildManpowerRows", () => {
@@ -41,6 +43,20 @@ describe("buildManpowerRows", () => {
     expect(rows.map((r) => r.branchCode)).toEqual(["A", "B", "C"]);
   });
 
+  test("an Offer fills the seat: it adds to Actual, takes away from the shortage, and is not counted as open", () => {
+    const reqs = [sales("1"), sales("2", { status: "Offer" }), sales("3", { status: "Offer" })];
+    const { rows } = buildManpowerRows(data([line("A", "SALES", 4, 1)], reqs), ju, TODAY);
+    const p = rows[0].positions[0];
+    expect(p).toMatchObject({ quota: 4, hrActual: 1, offers: 2, actual: 3, short: 1, over: 0, open: 1, status: "short", match: "match" });
+    expect(rows[0]).toMatchObject({ hrActual: 1, offers: 2, actual: 3, short: 1, open: 1 });
+  });
+
+  test("with enough Offers the position is full, and one more makes it over", () => {
+    const offers = (n: number) => Array.from({ length: n }, (_, i) => sales(`o${i}`, { status: "Offer" }));
+    expect(buildManpowerRows(data([line("A", "SALES", 3, 1)], offers(2)), ju, TODAY).rows[0]).toMatchObject({ status: "full", short: 0, over: 0, actual: 3 });
+    expect(buildManpowerRows(data([line("A", "SALES", 3, 1)], offers(3)), ju, TODAY).rows[0]).toMatchObject({ status: "over", short: 0, over: 1, actual: 4 });
+  });
+
   test("open in system counts only on-process requisitions of that branch and position whose date has arrived", () => {
     const reqs = [
       sales("1"),
@@ -53,9 +69,9 @@ describe("buildManpowerRows", () => {
     ];
     const { rows } = buildManpowerRows(data([line("A", "SALES", 4, 1), line("A", "SM", 1, 0)], reqs), ju, TODAY);
     const a = rows[0];
-    expect(a.positions.find((p) => p.positionCode === "SALES")).toMatchObject({ open: 2 });
-    expect(a.positions.find((p) => p.positionCode === "SM")).toMatchObject({ open: 1 });
-    expect(a.open).toBe(3);
+    expect(a.positions.find((p) => p.positionCode === "SALES")).toMatchObject({ open: 1, offers: 1 }); // the Offer is not "open"
+    expect(a.positions.find((p) => p.positionCode === "SM")).toMatchObject({ open: 1, offers: 0 });
+    expect(a.open).toBe(2);
   });
 
   test("match compares open in system with the shortage: equal, fewer or more", () => {
@@ -77,6 +93,18 @@ describe("buildManpowerRows", () => {
     expect(buildManpowerRows(data(quota), north, TODAY).rows.map((r) => r.branchCode)).toEqual(["B"]);
   });
 
+});
+
+describe("AM / RM / TA on manpower rows", () => {
+  const { rows } = buildManpowerRows(data([line("A", "SALES", 2, 1), line("C", "SALES", 2, 1)]), ju, TODAY);
+  test("a branch row carries its AM, RM and TA", () => {
+    expect(rows.find((r) => r.branchCode === "A")).toMatchObject({ am: "ก", rm: "R", taEmail: "ploy@example.com", taName: "ploy" });
+    expect(rows.find((r) => r.branchCode === "C")).toMatchObject({ am: "", rm: "", taEmail: "", taName: "" });
+  });
+  test("filters by AM and by TA in any case", () => {
+    expect(filterManpowerRows(rows, { am: "ก" }).map((r) => r.branchCode)).toEqual(["A"]);
+    expect(filterManpowerRows(rows, { ta: "PLOY@example.com" }).map((r) => r.branchCode)).toEqual(["A"]);
+  });
 });
 
 describe("filterManpowerRows and summarizeManpower", () => {

@@ -192,6 +192,14 @@ describe("new employees", () => {
     expect(nothingToDo(planProcessing(applied(i, plan)))).toBe(0);
   });
 
+  test("HR's start date wins; without one the hire keeps the date planned at the Offer", () => {
+    const planned = [{ ...theOffer[0], planned_start_date: "2026-11-25" }];
+    const withHr = planProcessing(input({ requisitions: offered, offers: planned }, { newEmployee: [{ rowNumber: 2, row: newEmp() }] }));
+    expect(withHr.newHireAppend[0]).toMatchObject({ start_date: "2026-11-20", planned_start_date: "2026-11-25" });
+    const noHr = planProcessing(input({ requisitions: offered, offers: planned }, { newEmployee: [{ rowNumber: 2, row: newEmp({ start_date: null }) }] }));
+    expect(noHr.newHireAppend[0]).toMatchObject({ start_date: "2026-11-25" });
+  });
+
   test("no match or several matches go to review, row stays unmarked so it is retried", () => {
     const two = [...offered, req({ id: "O2", status: "Offer", offer_id: "OF2" })];
     const twoOffers = [...theOffer, offer({ id: "OF2", req_id: "O2", first_name: "สมชาย", last_name: "ใจดี" })];

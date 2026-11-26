@@ -33,7 +33,9 @@ describe("runProcessor on the demo dataset", () => {
     expect(reqs.find((r) => r.id === "REQ-0013")).toMatchObject({ status: "Transfer", closed_at: "2026-11-15" });
     expect(reqs.find((r) => r.id === "REQ-0026")).toMatchObject({ status: "Cancel", closed_at: "2026-11-15" });
     expect(reqs.find((r) => r.id === "REQ-0027")!.status).toBe("Offer");
-    expect((await repo.list("NewHires")).map((h) => [h.employee_id, h.first_name])).toEqual([["E3001", "สมชาย"]]);
+    // The demo already has two hires (E3101, E3102); the run adds the one matched person.
+    expect((await repo.list("NewHires")).map((h) => [h.employee_id, h.first_name]).slice(-1)).toEqual([["E3001", "สมชาย"]]);
+    expect(await repo.list("NewHires")).toHaveLength(3);
     expect((await repo.list("Offers")).some((o) => o.id === "OFF-0002")).toBe(false);
     expect((await repo.list("Import_Resign")).map((r) => Boolean(r.processed_at))).toEqual([true, true, false]);
     expect((await repo.list("Import_Transfer")).map((r) => Boolean(r.processed_at))).toEqual([true, true, false]);

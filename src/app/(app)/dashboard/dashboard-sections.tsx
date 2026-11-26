@@ -2,11 +2,12 @@
 
 import { useState, type ReactNode } from "react";
 import Link from "next/link";
-import { AlarmClock, ArrowUpRight, Hourglass, Layers, PauseCircle, ShieldCheck, ThumbsDown, TrendingUp, UserMinus, UserPlus } from "lucide-react";
+import { AlarmClock, ArrowUpRight, Hourglass, Layers, PauseCircle, ShieldCheck, ThumbsDown, TrendingUp, UserMinus } from "lucide-react";
 import { TatBadge } from "@/components/aging-badge";
 import { NEAR_SLA_RATIO, OFFER_STALE_DAYS, groupOpen, type TrendPoint } from "@/lib/domain/dashboard";
 import { formatThaiDate } from "@/lib/domain/dates";
-import { OFFER_LOOKBACK_DAYS, RESIGN_LOOKAHEAD_DAYS, summarizeDeclines, summarizeResignations, type ManpowerGap, type OfferOutcome, type UpcomingResign } from "@/lib/domain/outlook";
+import { OFFER_LOOKBACK_DAYS, RESIGN_LOOKAHEAD_DAYS, summarizeDeclines, summarizeResignations, type OfferOutcome, type UpcomingResign } from "@/lib/domain/outlook";
+import type { People } from "@/lib/domain/people";
 import type { TrackingRow } from "@/lib/domain/tracking";
 import { cn } from "@/lib/utils";
 import { ListTip, RowTip, StatsTip, trackingHref, type NoteFn, type SpotFn } from "./dashboard-tips";
@@ -17,7 +18,7 @@ const NEAR_SLA_PCT = Math.round(NEAR_SLA_RATIO * 100);
 
 /* ---------- Action tiles ---------- */
 
-export interface ApprovalItem {
+export interface ApprovalItem extends People {
   id: string;
   type: "Cancel" | "Hold";
   region: string;
@@ -29,7 +30,7 @@ export interface ApprovalItem {
   since: string;
 }
 
-export interface HoldItem {
+export interface HoldItem extends People {
   id: string;
   region: string;
   province: string;
@@ -151,14 +152,14 @@ export function ActionTiles({
         <Tile
           icon={<PauseCircle />}
           value={holds.length}
-          label="พักอยู่ (Hold)"
+          label="Hold"
           note={holds.length ? `นานสุด ${oldestHold} วัน` : "ไม่มีตำแหน่งที่พัก"}
           href="/hold"
           onSpot={(on) =>
             onNote(
               on
                 ? {
-                    label: "พักอยู่ (Hold)",
+                    label: "Hold",
                     text: holds.length ? `มี ${holds.length} ตำแหน่งที่พักอยู่` : "ไม่มีตำแหน่งที่พัก",
                     sub: holds.length ? `นานสุด ${oldestHold} วัน · เฉลี่ย ${Math.round(holds.reduce((n, h) => n + h.days, 0) / holds.length)} วัน` : undefined,
                     provinces: holds.map((h) => h.province).filter(Boolean),
@@ -195,35 +196,29 @@ export function ActionTiles({
 
 const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n)}…` : s);
 
-/** Three tiles that look past the open vacancies: resignations due, headcount nobody is recruiting for, Offers turned down. */
+/** Tiles that look past the open vacancies: resignations due and Offers turned down. */
 export function OutlookTiles({
   resigns,
-  gaps,
-  hasQuota,
   outcomes,
   today,
   onNote,
 }: {
   resigns: UpcomingResign[];
-  gaps: ManpowerGap[];
-  hasQuota: boolean;
   outcomes: OfferOutcome[];
   today: string;
   onNote: NoteFn;
 }) {
   const { soon, later } = summarizeResignations(resigns, today);
-  const gapTotal = gaps.reduce((n, g) => n + g.gap, 0);
-  const shortTotal = gaps.reduce((n, g) => n + g.short, 0);
   const dec = summarizeDeclines(outcomes);
   const top = dec.reasons[0];
   return (
-    <ul aria-label="ภาพรวมที่กำลังจะเกิดขึ้น" className={cn(SPOT_GROUP, "grid gap-4 md:grid-cols-3")}>
+    <ul aria-label="ภาพรวมที่กำลังจะเกิดขึ้น" className={cn(SPOT_GROUP, "grid gap-4 md:grid-cols-2")}>
       <li>
         <Tile
           icon={<UserMinus />}
           value={soon.length}
-          label={`ลาออกใน ${RESIGN_LOOKAHEAD_DAYS} วัน`}
-          note={soon.length ? `ใกล้สุด ${formatThaiDate(soon[0].effectiveDate)}${later ? ` · หลังจากนั้นอีก ${later}` : ""}` : later ? `ยังไม่มี · หลังจากนั้นอีก ${later}` : "ไม่มีคนลาออกที่รอมีผล"}
+          label="Resign"
+          note={soon.length ? `ใน ${RESIGN_LOOKAHEAD_DAYS} วัน · ใกล้สุด ${formatThaiDate(soon[0].effectiveDate)}${later ? ` · หลังจากนั้นอีก ${later}` : ""}` : later ? `ยังไม่มี · หลังจากนั้นอีก ${later}` : "ไม่มีคนลาออกที่รอมีผล"}
           href="/resignations"
           onSpot={(on) =>
             onNote(
@@ -249,45 +244,16 @@ export function OutlookTiles({
       </li>
       <li>
         <Tile
-          icon={<UserPlus />}
-          value={gapTotal}
-          label="ขาดแต่ยังไม่เปิดสรรหา"
-          note={gaps.length ? `ใน ${gaps.length} สาขา · HR ขาดรวม ${shortTotal}` : hasQuota ? "ทุกสาขาเปิดสรรหาครบตามที่ขาด" : "ยังไม่มีข้อมูลโควตาจาก HR"}
-          href="/manpower"
-          onSpot={(on) =>
-            onNote(
-              on
-                ? {
-                    label: "ขาดแต่ยังไม่เปิดสรรหา",
-                    text: gapTotal ? `HR แจ้งว่าขาดคน แต่ยังไม่มีตำแหน่งเปิดรองรับอีก ${gapTotal} ตำแหน่ง` : "ทุกตำแหน่งที่ขาดมีการเปิดสรรหาแล้ว",
-                    sub: gaps.length ? `${gaps.length} สาขา · ตำแหน่งเหล่านี้ยังไม่อยู่ในการติดตาม` : undefined,
-                    provinces: gaps.map((g) => g.province).filter(Boolean),
-                  }
-                : null,
-            )
-          }
-          tip={
-            <ListTip
-              title="สาขาที่ขาดโดยไม่มีตำแหน่งเปิดรองรับ"
-              total={gaps.length}
-              empty={hasQuota ? "ไม่มีสาขาที่หลุดการติดตาม" : "ยังไม่มีข้อมูลโควตา"}
-              items={gaps.slice(0, 5).map((g) => ({ label: g.branchName, value: `${g.gap} ตำแหน่ง` }))}
-            />
-          }
-        />
-      </li>
-      <li>
-        <Tile
           icon={<ThumbsDown />}
           value={dec.pct ?? "–"}
           unit={dec.pct === null ? undefined : "%"}
-          label="ปฏิเสธ Offer"
+          label="Turndown"
           note={dec.total ? `${dec.declined} จาก ${dec.total} Offer ใน ${OFFER_LOOKBACK_DAYS} วัน${top ? ` · มากสุด: ${clip(top.reason, 22)}` : ""}` : `ไม่มี Offer ใน ${OFFER_LOOKBACK_DAYS} วัน`}
           onSpot={(on) =>
             onNote(
               on
                 ? {
-                    label: "ปฏิเสธ Offer",
+                    label: "Turndown",
                     text: dec.total ? `ผู้สมัครปฏิเสธ ${dec.declined} จาก ${dec.total} Offer ใน ${OFFER_LOOKBACK_DAYS} วันที่ผ่านมา` : `ไม่มี Offer ใน ${OFFER_LOOKBACK_DAYS} วันที่ผ่านมา`,
                     sub: top ? `เหตุผลที่พบมากสุด: ${top.reason} (${top.count})` : undefined,
                     provinces: outcomes.filter((o) => o.declinedReason !== null).map((o) => o.province).filter(Boolean),
@@ -564,7 +530,7 @@ export function AttentionCard({ longest, near, offers, totals, onSpot, tab, onTa
               key={r.id}
               row={r}
               onSpot={onSpot}
-              title={`${r.positionName} · ${r.branchName}`}
+              title={`${r.positionName} · ${r.branchCode} ${r.branchName}`}
               sub={`${r.region} · TA ${r.taName || "-"}`}
               trailing={<TatBadge tat={r.tat} band={r.agingBand} />}
             />
@@ -575,7 +541,7 @@ export function AttentionCard({ longest, near, offers, totals, onSpot, tab, onTa
               key={r.id}
               row={r}
               onSpot={onSpot}
-              title={`${r.positionName} · ${r.branchName}`}
+              title={`${r.positionName} · ${r.branchCode} ${r.branchName}`}
               sub={`${r.region} · TA ${r.taName || "-"} · TAT ${r.tat}/${r.slaDays} วัน`}
               trailing={
                 <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-900 tabular-nums">
@@ -591,7 +557,7 @@ export function AttentionCard({ longest, near, offers, totals, onSpot, tab, onTa
               row={r}
               onSpot={onSpot}
               title={`${r.offerName ?? "-"} · ${r.positionName}`}
-              sub={`${r.branchName} · TA ${r.taName || "-"}${r.offerChannel ? ` · ${r.offerChannel}` : ""}`}
+              sub={`${r.branchCode} ${r.branchName} · TA ${r.taName || "-"}${r.offerChannel ? ` · ${r.offerChannel}` : ""}`}
               trailing={
                 <span className={cn("rounded-full px-2.5 py-0.5 text-xs tabular-nums", days > OFFER_STALE_DAYS ? "bg-red-100 font-medium text-[#b91c1c]" : "bg-black/5 text-foreground/70")}>
                   Offer แล้ว {days} วัน
@@ -627,6 +593,9 @@ export function GroupCard({ rows, onSpot }: { rows: TrackingRow[]; onSpot: SpotF
   const all = groupOpen(rows, by, Infinity);
   const groups = all.slice(0, 5);
   const max = Math.max(1, ...groups.map((g) => g.open));
+  // Branch rows lead with the shop ID, as the attention list does.
+  const codes = new Map(rows.map((r) => [r.branchName, r.branchCode]));
+  const nameOf = (name: string) => (by === "branchName" && codes.get(name) ? `${codes.get(name)} ${name}` : name);
   return (
     <section aria-labelledby="group-title" className={cn("overflow-hidden rounded-3xl", GLASS)}>
       <CardHeader
@@ -654,12 +623,12 @@ export function GroupCard({ rows, onSpot }: { rows: TrackingRow[]; onSpot: SpotF
             <li key={g.name}>
               <Link
                 href={trackingHref(by === "bu" ? { bu: g.name } : { q: g.name })}
-                {...bind(<StatsTip title={g.name} sub={GROUP_NOUN[by]} s={g} hint="คลิกเพื่อดูรายการในหน้าติดตาม" />, {
+                {...bind(<StatsTip title={nameOf(g.name)} sub={GROUP_NOUN[by]} s={g} hint="คลิกเพื่อดูรายการในหน้าติดตาม" />, {
                   onSpot: (on) => onSpot(on ? (r) => r[by] === g.name : null, on ? g.name : undefined),
                 })}
                 className={cn(SPOT, ROW, "flex flex-wrap items-center gap-x-4 gap-y-1.5 px-3 py-2.5 outline-none focus-visible:ring-2 focus-visible:ring-ring/50")}
               >
-                <span className="min-w-0 flex-1 basis-40 truncate text-sm font-medium">{g.name}</span>
+                <span className="min-w-0 flex-1 basis-40 truncate text-sm font-medium">{nameOf(g.name)}</span>
                 <StackBar s={g} max={max} className="w-full basis-full sm:w-40 sm:basis-40" />
                 <span className="flex items-center gap-3 text-sm tabular-nums">
                   <span className="w-8 text-right font-heading font-medium">{g.open}</span>

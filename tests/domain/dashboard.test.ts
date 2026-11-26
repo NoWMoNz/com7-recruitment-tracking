@@ -1,12 +1,14 @@
 import { describe, expect, test } from "vitest";
-import { groupOpen, longestOpen, momentum, nearSla, offersWaiting, provinceStats, summarize, sumTrend } from "@/lib/domain/dashboard";
+import { buildTrend, groupOpen, longestOpen, momentum, nearSla, offersWaiting, provinceStats, summarize, sumTrend } from "@/lib/domain/dashboard";
+import { parseSettings } from "@/lib/domain/settings";
+import { branch, positions, req, user } from "./helpers";
 import type { TrackingRow } from "@/lib/domain/tracking";
 
 function row(p: Partial<TrackingRow> & Pick<TrackingRow, "id">): TrackingRow {
   return {
-    region: "ภาคกลาง", province: "", bu: "Apple", branchCode: "B1", branchName: "B1", positionName: "Sales", requestDate: "2026-10-02",
+    region: "ภาคกลาง", province: "", bu: "Apple", am: "", rm: "", branchCode: "B1", branchName: "B1", positionName: "Sales", requestDate: "2026-10-02",
     status: "Vacancy", upcoming: false, tat: 10, tatResult: "InProgress", agingBand: "green", taEmail: "mind@example.com",
-    taName: "มายด์", offerName: null, offerDate: null, offerChannel: null, holdDays: 0, slaDays: 30, canEdit: false, version: 1, ...p,
+    taName: "มายด์", offerName: null, offerDate: null, offerChannel: null, offer: null, startOverdue: false, holdDays: 0, slaDays: 30, canEdit: false, version: 1, ...p,
   };
 }
 
@@ -20,7 +22,7 @@ describe("summarize", () => {
   ];
 
   test("open vacancy excludes upcoming rows", () => {
-    expect(summarize(rows).open).toBe(4);
+    expect(summarize(rows).open).toBe(2); // the two Offers are not still being recruited for
   });
 
   test("offer count and TAT meet share over judged rows", () => {
@@ -43,12 +45,12 @@ describe("summarize", () => {
   test("regions sorted by open count then name; TAs sorted by open count", () => {
     const s = summarize(rows);
     expect(s.regions.map((r) => [r.name, r.open])).toEqual([
-      ["ภาคกลาง", 3],
-      ["ภาคเหนือ", 1],
+      ["ภาคกลาง", 2],
+      ["ภาคเหนือ", 0],
     ]);
     expect(s.tas.map((t) => [t.name, t.open, t.offers, t.notMeet])).toEqual([
-      ["มายด์", 3, 1, 1],
-      ["บี", 1, 1, 1],
+      ["มายด์", 2, 1, 1],
+      ["บี", 0, 1, 1],
     ]);
   });
 
@@ -85,7 +87,7 @@ describe("attention lists", () => {
   test("groupOpen: counts per key, sorted by open then name, with average aging", () => {
     const g = groupOpen(rows, "positionName", 5);
     expect(g).toHaveLength(1);
-    expect(g[0]).toMatchObject({ name: "Sales", open: 6, offers: 2, notMeet: 2, avgAging: 45, bands: { green: 2, orange: 1, red: 0, darkred: 1 } });
+    expect(g[0]).toMatchObject({ name: "Sales", open: 4, offers: 2, notMeet: 2, avgAging: 45, bands: { green: 2, orange: 1, red: 0, darkred: 1 } });
     expect(g[0].oldest?.id).toBe("A");
   });
 });
@@ -113,39 +115,61 @@ describe("tat split and province stats", () => {
 
 describe("trend", () => {
   const months = [
-    { month: "2026-10", rows: [{ region: "ภาคกลาง", bu: "Apple", new: 4, offers: 3, closed: 2, cancel: 1, hold: 0, open: 10, tatDays: 90, slaDays: 90 }, { region: "ภาคเหนือ", bu: "BaNANA", new: 1, offers: 1, closed: 1, cancel: 0, hold: 1, open: 4, tatDays: 40, slaDays: 30 }] },
-    { month: "2026-11", rows: [{ region: "ภาคกลาง", bu: "Apple", new: 2, offers: 5, closed: 1, cancel: 0, hold: 0, open: 9, tatDays: 100, slaDays: 150 }] },
+    { month: "2026-10", rows: [{ region: "ภาคกลาง", bu: "Apple", am: "ก", rm: "R", taEmail: "mind@example.com", new: 4, offers: 3, closed: 2, cancel: 1, hold: 0, open: 10, tatDays: 90, slaDays: 90 }, { region: "ภาคเหนือ", bu: "BaNANA", am: "ข", rm: "R", taEmail: "ploy@example.com", new: 1, offers: 1, closed: 1, cancel: 0, hold: 1, open: 4, tatDays: 40, slaDays: 30 }] },
+    { month: "2026-11", rows: [{ region: "ภาคกลาง", bu: "Apple", am: "ก", rm: "R", taEmail: "mind@example.com", new: 2, offers: 5, closed: 1, cancel: 0, hold: 0, open: 9, tatDays: 100, slaDays: 150 }] },
   ];
 
   test("sums every region by default", () => {
-    expect(sumTrend(months, "")).toEqual([
+    expect(sumTrend(months, {})).toEqual([
       { month: "2026-10", new: 5, offers: 4, closed: 3, cancel: 1, hold: 1, open: 14, tatDays: 130, slaDays: 120 },
       { month: "2026-11", new: 2, offers: 5, closed: 1, cancel: 0, hold: 0, open: 9, tatDays: 100, slaDays: 150 },
     ]);
   });
 
   test("filters to one region", () => {
-    expect(sumTrend(months, "ภาคเหนือ").map((m) => m.offers)).toEqual([1, 0]);
+    expect(sumTrend(months, { region: "ภาคเหนือ" }).map((m) => m.offers)).toEqual([1, 0]);
   });
 
   test("filters to one business unit, alone or with a region", () => {
-    expect(sumTrend(months, "", "BaNANA").map((m) => m.new)).toEqual([1, 0]);
-    expect(sumTrend(months, "", "Apple").map((m) => m.new)).toEqual([4, 2]);
-    expect(sumTrend(months, "ภาคเหนือ", "Apple").map((m) => m.new)).toEqual([0, 0]);
+    expect(sumTrend(months, { bu: "BaNANA" }).map((m) => m.new)).toEqual([1, 0]);
+    expect(sumTrend(months, { bu: "Apple" }).map((m) => m.new)).toEqual([4, 2]);
+    expect(sumTrend(months, { region: "ภาคเหนือ", bu: "Apple" }).map((m) => m.new)).toEqual([0, 0]);
+  });
+
+  test("filters to one AM, or one TA in any case", () => {
+    expect(sumTrend(months, { am: "ข" }).map((m) => m.new)).toEqual([1, 0]);
+    expect(sumTrend(months, { ta: "MIND@example.com" }).map((m) => m.new)).toEqual([4, 2]);
+    expect(sumTrend(months, { rm: "R" }).map((m) => m.new)).toEqual([5, 2]);
+  });
+
+  test("buildTrend keeps each AM's positions on rows of their own", () => {
+    const d = {
+      requisitions: [req({ id: "1", branch_code: "B1", request_date: "2026-11-05" }), req({ id: "2", branch_code: "B2", request_date: "2026-11-06", ta_email: "ploy@example.com" })],
+      log: [],
+      branches: [branch({ branch_code: "B1", am: "ก", rm: "R" }), branch({ branch_code: "B2", am: "ข", rm: "R" })],
+      positions,
+      users: [user({ email: "mind@example.com" }), user({ email: "ploy@example.com" })],
+      settings: parseSettings([]),
+      offers: [],
+    };
+    const trend = buildTrend(d, d.requisitions, "2026-11-20", 1);
+    expect(sumTrend(trend, { am: "ก" }).map((m) => m.new)).toEqual([1]);
+    expect(sumTrend(trend, { ta: "ploy@example.com" }).map((m) => m.new)).toEqual([1]);
+    expect(sumTrend(trend, {}).map((m) => m.new)).toEqual([2]);
   });
 
   test("momentum compares this month with last: fewer open, faster offers", () => {
-    expect(momentum(sumTrend(months, ""))).toEqual({ openDelta: -5, offers: 5, avgTat: 20, avgSla: 30, tatDelta: -13 });
+    expect(momentum(sumTrend(months, {}))).toEqual({ openDelta: -5, offers: 5, avgTat: 20, avgSla: 30, tatDelta: -13 });
   });
 
   test("momentum leaves out what it cannot compare", () => {
     // Last month had offers but this one has none: no average, no change.
-    expect(momentum(sumTrend(months, "ภาคเหนือ"))).toMatchObject({ openDelta: -4, offers: 0, avgTat: null, tatDelta: null });
+    expect(momentum(sumTrend(months, { region: "ภาคเหนือ" }))).toMatchObject({ openDelta: -4, offers: 0, avgTat: null, tatDelta: null });
     // Only one month: nothing to compare with.
-    expect(momentum(sumTrend(months, "").slice(-1))).toMatchObject({ openDelta: null, tatDelta: null, avgTat: 20 });
+    expect(momentum(sumTrend(months, {}).slice(-1))).toMatchObject({ openDelta: null, tatDelta: null, avgTat: 20 });
     // Nothing was open last month: no baseline, so no change is shown.
-    const fresh = [{ month: "2026-10", rows: [] }, { month: "2026-11", rows: [{ region: "ภาคกลาง", bu: "Apple", new: 996, offers: 0, closed: 0, cancel: 0, hold: 0, open: 996, tatDays: 0, slaDays: 0 }] }];
-    expect(momentum(sumTrend(fresh, "")).openDelta).toBeNull();
+    const fresh = [{ month: "2026-10", rows: [] }, { month: "2026-11", rows: [{ region: "ภาคกลาง", bu: "Apple", am: "", rm: "", taEmail: "", new: 996, offers: 0, closed: 0, cancel: 0, hold: 0, open: 996, tatDays: 0, slaDays: 0 }] }];
+    expect(momentum(sumTrend(fresh, {})).openDelta).toBeNull();
     expect(momentum([])).toEqual({ openDelta: null, offers: 0, avgTat: null, avgSla: null, tatDelta: null });
   });
 });

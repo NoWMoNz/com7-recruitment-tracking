@@ -16,12 +16,12 @@ export async function GET(request: NextRequest) {
   const user = email ? findActiveUser(await repo.list("Users"), email) : null;
   if (!user) return new Response("Unauthorized", { status: 401 });
 
-  const [quota, requisitions, branches, positions] = await Promise.all([repo.list("Quota"), repo.list("Requisitions"), repo.list("Branches"), repo.list("Positions")]);
+  const [quota, requisitions, branches, positions, assignments, users] = await Promise.all([repo.list("Quota"), repo.list("Requisitions"), repo.list("Branches"), repo.list("Positions"), repo.list("RecruiterAssignments"), repo.list("Users")]);
   const q = request.nextUrl.searchParams;
   const get = (k: string) => q.get(k)?.trim() || undefined;
-  const { rows } = buildManpowerRows({ quota, requisitions, branches, positions }, user, todayBangkok());
+  const { rows } = buildManpowerRows({ quota, requisitions, branches, positions, assignments, users }, user, todayBangkok());
   const { buffer, filename } = await buildManpowerWorkbook(
-    filterManpowerRows(rows, { bu: get("bu"), region: get("region"), status: STATUSES.find((s) => s === get("status")), q: get("q") }),
+    filterManpowerRows(rows, { bu: get("bu"), region: get("region"), status: STATUSES.find((s) => s === get("status")), q: get("q"), am: get("am"), rm: get("rm"), ta: get("ta") }),
   );
   return new Response(buffer, {
     headers: {

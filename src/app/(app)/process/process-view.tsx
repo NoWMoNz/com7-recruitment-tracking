@@ -6,7 +6,7 @@ import { CheckCheck, Link2, Play, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { Dropdown } from "@/components/ui/dropdown";
 import type { RunSummary } from "@/lib/processor/run";
-import type { ReviewType } from "@/lib/domain/types";
+import { REVIEW_TYPE_LABEL, type ReviewType } from "@/lib/domain/types";
 import { cn } from "@/lib/utils";
 import { matchHire, resolveReview, runProcessingNow } from "./actions";
 
@@ -31,12 +31,7 @@ interface Props {
   offers: OfferOption[];
 }
 
-const REVIEW_LABEL: Record<ReviewType, string> = {
-  UnmatchedHire: "รอจับคู่พนักงานใหม่",
-  TransferNoReq: "โอนเข้าแต่ไม่มีตำแหน่งว่าง",
-  OfferAtClosedStore: "ร้านปิดแต่มีคน Offer",
-  ResignWithdrawn: "ยกเลิกลาออกแต่ตำแหน่งยังเปิดอยู่",
-};
+const REVIEW_LABEL = REVIEW_TYPE_LABEL;
 const REVIEW_HINT: Record<ReviewType, string> = {
   UnmatchedHire: "เลือกคน Offer ที่ตรงกับพนักงานคนนี้ ระบบจะเปลี่ยนเป็น Hired และย้ายไปแท็บ NewHires",
   TransferNoReq: "ตรวจข้อมูลโอนย้าย ถ้าต้องสร้างตำแหน่งให้เพิ่มในแท็บ Import_Requisition แล้วกดตรวจแล้ว",

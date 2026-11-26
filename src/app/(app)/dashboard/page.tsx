@@ -1,11 +1,11 @@
 import { Suspense } from "react";
 import { getSessionUser } from "@/lib/auth/session-user";
 import { buildTrend } from "@/lib/domain/dashboard";
-import { buildManpowerRows } from "@/lib/domain/manpower";
-import { manpowerGaps, offerOutcomes, upcomingResignations } from "@/lib/domain/outlook";
+import { offerOutcomes, upcomingResignations } from "@/lib/domain/outlook";
 import { buildResignRows } from "@/lib/domain/resign";
 import { todayBangkok } from "@/lib/domain/dates";
 import { buOf } from "@/lib/domain/types";
+import { peopleOfBranch } from "@/lib/domain/people";
 import { inScope } from "@/lib/domain/permissions";
 import { buildApprovalRows, buildHoldRows } from "@/lib/domain/queues";
 import { filtered } from "@/lib/domain/report";
@@ -16,12 +16,11 @@ import { PageHeader } from "@/components/page-header";
 import { DashboardView } from "./dashboard-view";
 
 const TITLE = "Dashboard ภาพรวม";
-const DESCRIPTION = "สรุปตำแหน่งว่าง Offer และผลลัพธ์ TAT ของทีมสรรหา แยกตามภาคและผู้รับผิดชอบ";
 
 async function DashboardContent() {
   const user = await getSessionUser();
   const repo = getRepo();
-  const [requisitions, offers, log, branches, positions, users, settingRows, approvals, turndowns, newHires, quota, resign] = await Promise.all([
+  const [requisitions, offers, log, branches, positions, users, settingRows, approvals, turndowns, newHires, resign] = await Promise.all([
     repo.list("Requisitions"),
     repo.list("Offers"),
     repo.list("StatusLog"),
@@ -32,8 +31,7 @@ async function DashboardContent() {
     repo.list("Approvals"),
     repo.list("Turndowns"),
     repo.list("NewHires"),
-    repo.list("Quota"),
-    repo.listNumbered("Import_Resign"),
+    repo.listNumbered("Import_Resign", { cached: true }),
   ]);
 
   const today = todayBangkok();
@@ -47,6 +45,9 @@ async function DashboardContent() {
     region: a.region,
     province: a.province,
     bu: a.bu,
+    am: a.am,
+    rm: a.rm,
+    taEmail: a.taEmail,
     branchName: a.branchName,
     positionName: a.positionName,
     by: a.requestedBy,
@@ -57,6 +58,9 @@ async function DashboardContent() {
     region: h.region,
     province: h.province,
     bu: h.bu,
+    am: h.am,
+    rm: h.rm,
+    taEmail: h.taEmail,
     branchName: h.branchName,
     positionName: h.positionName,
     taName: h.taName,
@@ -73,7 +77,7 @@ async function DashboardContent() {
     .filter((r) => r.status === "Hired" && r.closed_at?.startsWith(month))
     .flatMap((r) => {
       const b = branchByCode.get(r.branch_code);
-      return b && inScope(user, b) ? [{ region: b.region || "ไม่ระบุ", bu: buOf(b) }] : [];
+      return b && inScope(user, b) ? [{ region: b.region || "ไม่ระบุ", bu: buOf(b), ...peopleOfBranch(b), taEmail: r.ta_email }] : [];
     });
 
   const turndownRegions = turndowns
@@ -81,12 +85,11 @@ async function DashboardContent() {
     .flatMap((t) => {
       const r = requisitions.find((x) => x.id === t.req_id);
       const b = r && branchByCode.get(r.branch_code);
-      return b && inScope(user, b) ? [{ region: b.region || "ไม่ระบุ", bu: buOf(b) }] : [];
+      return b && r && inScope(user, b) ? [{ region: b.region || "ไม่ระบุ", bu: buOf(b), ...peopleOfBranch(b), taEmail: r.ta_email }] : [];
     });
 
-  // Looking ahead: resignations still to take effect, HR shortages with no requisition behind them, and how Offers fared.
+  // Looking ahead: resignations still to take effect, and how Offers fared.
   const resigns = upcomingResignations(buildResignRows({ resign, requisitions, branches, positions, users }, user, today));
-  const manpower = buildManpowerRows({ quota, requisitions, branches, positions }, user, today).rows;
   const outcomes = offerOutcomes({ offers, newHires, turndowns, requisitions, branches }, user, today);
 
   return (
@@ -98,13 +101,10 @@ async function DashboardContent() {
       approvals={approvalRows}
       holds={holdRows}
       resigns={resigns}
-      gaps={manpowerGaps(manpower)}
-      hasQuota={manpower.length > 0}
       outcomes={outcomes}
       today={today}
       isAdmin={user.role === "super_admin"}
       title={TITLE}
-      description={DESCRIPTION}
     />
   );
 }
@@ -114,7 +114,7 @@ export default function DashboardPage() {
     <Suspense
       fallback={
         <div className="space-y-4">
-          <PageHeader title={TITLE} description={DESCRIPTION} />
+          <PageHeader title={TITLE} />
           <p className="rounded-[1.75rem] bg-white/65 py-12 text-center text-muted-foreground ring-1 ring-white/80">กำลังโหลดข้อมูล…</p>
         </div>
       }

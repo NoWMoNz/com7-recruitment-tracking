@@ -9,7 +9,7 @@ const TODAY = "2026-11-20";
 const ju = user({ email: "ju@example.com", role: "super_admin" });
 const north = user({ email: "north@example.com", role: "viewer", scope: "ภาคเหนือ" });
 const branches = [
-  branch({ branch_code: "A", branch_name: "สาขา A", bu: "Apple", region: "ภาคกลาง" }),
+  branch({ branch_code: "A", branch_name: "สาขา A", bu: "Apple", region: "ภาคกลาง", am: "ก", rm: "R" }),
   branch({ branch_code: "B", branch_name: "สาขา B", bu: "BaNANA", region: "ภาคเหนือ" }),
 ];
 
@@ -40,6 +40,10 @@ describe("upcomingResignations / summarizeResignations", () => {
     expect(upcomingResignations(rows).map((r) => r.effectiveDate)).toEqual(["2026-11-25", "2026-12-20", "2026-12-21"]);
   });
 
+  test("each carries its branch's AM / RM", () => {
+    expect(upcomingResignations(rows)[0]).toMatchObject({ am: "ก", rm: "R", taEmail: "" });
+  });
+
   test("splits them at 30 days ahead, the edge day included", () => {
     const { soon, later } = summarizeResignations(upcomingResignations(rows), TODAY);
     expect(soon).toHaveLength(2);
@@ -50,7 +54,7 @@ describe("upcomingResignations / summarizeResignations", () => {
 describe("manpowerGaps", () => {
   const line = (branch_code: string, position_code: string, quota: number, actual: number): QuotaLine => ({ branch_code, position_code, quota, actual, report_date: "2026-11-11" });
   const gaps = (quota: QuotaLine[], requisitions = [req({ id: "1", branch_code: "A", position_code: "SALES" })]) =>
-    manpowerGaps(buildManpowerRows({ quota, requisitions, branches, positions }, ju, TODAY).rows);
+    manpowerGaps(buildManpowerRows({ quota, requisitions, branches, positions, assignments: [], users: [] }, ju, TODAY).rows);
 
   test("counts per position what HR is short of and no open requisition covers", () => {
     // SALES short 3 with 1 open -> 2 uncovered; SM short 1 with none open -> 1 uncovered.
@@ -89,6 +93,11 @@ describe("offerOutcomes / summarizeDeclines", () => {
   test("counts Offers of the last 90 days, open, hired and declined alike", () => {
     const s = summarizeDeclines(offerOutcomes(data, ju, TODAY));
     expect(s).toMatchObject({ total: 5, declined: 3, pct: 60 });
+  });
+
+  test("each Offer carries its branch's AM / RM and its position's TA", () => {
+    const first = offerOutcomes(data, ju, TODAY)[0];
+    expect(first).toMatchObject({ am: "ก", rm: "R", taEmail: "mind@example.com" });
   });
 
   test("ranks reasons, and a blank reason is named as such", () => {

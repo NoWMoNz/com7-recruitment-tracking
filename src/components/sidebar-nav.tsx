@@ -25,6 +25,7 @@ const GROUPS: Group[] = [
     icon: ClipboardList,
     pages: [
       { href: "/tracking", label: "ติดตามการสรรหา" },
+      { href: "/hired", label: "Hired" },
       { href: "/manpower", label: "กำลังพล" },
     ],
   },
@@ -36,7 +37,7 @@ const GROUPS: Group[] = [
       { href: "/resignations", label: "รายชื่อลาออก" },
     ],
   },
-  { label: "Reports", icon: FileBarChart, pages: [{ href: "/reports", label: "Reports" }] },
+  { label: "Report", icon: FileBarChart, pages: [{ href: "/reports", label: "Report" }] },
   {
     label: "งานรอจัดการ",
     icon: ShieldCheck,

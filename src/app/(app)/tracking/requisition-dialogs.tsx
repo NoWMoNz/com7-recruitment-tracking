@@ -12,7 +12,7 @@ import type { TrackingRow } from "@/lib/domain/tracking";
 import { cn } from "@/lib/utils";
 import { Field, FIELD, FormError, useSubmit } from "../form-bits";
 import { editRequisition } from "../master/actions";
-import { submitApprovalRequest, submitOffer, submitTurndown } from "./actions";
+import { submitApprovalRequest, submitOffer, submitOfferEdit, submitTurndown } from "./actions";
 
 export interface EditContext {
   today: LocalDate;
@@ -24,6 +24,8 @@ export interface EditContext {
   isAdmin: boolean;
   /** Active TAs and super_admins, for the owner picker. */
   assignable: { value: string; label: string }[];
+  /** TAs and super_admins can hand a branch to another TA. */
+  canChangeBranchTa: boolean;
 }
 
 export type DialogTarget = { mode: "offer" | "turndown" | "edit"; row: TrackingRow } | null;
@@ -57,6 +59,7 @@ function OfferForm({ row, ctx, onDone }: { row: TrackingRow; ctx: EditContext; o
   const [phone, setPhone] = useState("");
   const [offerDate, setOfferDate] = useState(ctx.today);
   const [channel, setChannel] = useState("");
+  const [startDate, setStartDate] = useState("");
   const { pending, errors, run, clear } = useSubmit(onDone);
 
   // Preview only; the server recomputes TAT with hold days up to the chosen date.
@@ -69,7 +72,7 @@ function OfferForm({ row, ctx, onDone }: { row: TrackingRow; ctx: EditContext; o
       className="grid gap-4"
       onSubmit={(e) => {
         e.preventDefault();
-        run(() => submitOffer(row.id, row.version, { title, firstName, lastName, phone, offerDate, channel }), `บันทึก Offer ${row.positionName} แล้ว`);
+        run(() => submitOffer(row.id, row.version, { title, firstName, lastName, phone, offerDate, channel, startDate }), `บันทึก Offer ${row.positionName} แล้ว`);
       }}
     >
       <RowSummary row={row} />
@@ -101,9 +104,14 @@ function OfferForm({ row, ctx, onDone }: { row: TrackingRow; ctx: EditContext; o
         </Field>
       </div>
 
-      <Field id={id("phone")} label="เบอร์โทร (ไม่บังคับ)" error={errors.phone}>
-        <input id={id("phone")} type="tel" inputMode="tel" value={phone} onChange={(e) => (setPhone(e.target.value), clear("phone"))} className={FIELD} autoComplete="off" {...invalid("phone")} />
-      </Field>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field id={id("start")} label="วันเริ่มงาน (ไม่บังคับ)" error={errors.startDate} hint="กำหนดภายหลังหรือแก้ไขได้">
+          <DatePicker id={id("start")} value={startDate} min={offerDate || undefined} clearable onChange={(v) => (setStartDate(v), clear("startDate"))} invalid={Boolean(errors.startDate)} />
+        </Field>
+        <Field id={id("phone")} label="เบอร์โทร (ไม่บังคับ)" error={errors.phone}>
+          <input id={id("phone")} type="tel" inputMode="tel" value={phone} onChange={(e) => (setPhone(e.target.value), clear("phone"))} className={FIELD} autoComplete="off" {...invalid("phone")} />
+        </Field>
+      </div>
 
       <div className="flex items-center justify-between rounded-2xl bg-muted px-4 py-3 text-sm" aria-live="polite">
         <span>
@@ -126,6 +134,86 @@ function OfferForm({ row, ctx, onDone }: { row: TrackingRow; ctx: EditContext; o
           className="h-10 rounded-full bg-ink-chip px-6 text-sm font-medium text-white outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-60"
         >
           {pending ? "กำลังบันทึก…" : "บันทึก Offer"}
+        </button>
+      </DialogFooter>
+    </form>
+  );
+}
+
+/** Greyed, read-only look for Offer fields that can no longer be edited. */
+const LOCKED = "disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground";
+
+const clock = (iso: string) => new Date(iso).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Bangkok" });
+
+/**
+ * Edits a saved Offer. For 2 hours after saving (always for super_admin) every field can be corrected; after that
+ * the fields are greyed out and only the start date can move, to today or later.
+ */
+function OfferEditForm({ row, ctx, onDone }: { row: TrackingRow; ctx: EditContext; onDone: () => void }) {
+  const uid = useId();
+  const id = (k: string) => `${uid}-${k}`;
+  const o = row.offer!;
+  // Decided when the form opens; the server checks again on save.
+  const [locked] = useState(() => !ctx.isAdmin && Date.now() > Date.parse(o.editableUntil));
+  const [title, setTitle] = useState(o.title);
+  const [firstName, setFirstName] = useState(o.firstName);
+  const [lastName, setLastName] = useState(o.lastName);
+  const [phone, setPhone] = useState(o.phone);
+  const [offerDate, setOfferDate] = useState(row.offerDate ?? "");
+  const [channel, setChannel] = useState(o.channel);
+  const [startDate, setStartDate] = useState(o.startDate ?? "");
+  const { pending, errors, run, clear } = useSubmit(onDone);
+  const channels = ctx.channels.includes(o.channel) || !o.channel ? ctx.channels : [o.channel, ...ctx.channels];
+
+  return (
+    <form
+      className="grid gap-4"
+      onSubmit={(e) => {
+        e.preventDefault();
+        run(() => submitOfferEdit(row.id, row.version, { title, firstName, lastName, phone, offerDate, channel, startDate }), `บันทึกข้อมูล Offer ${row.positionName} แล้ว`);
+      }}
+    >
+      <RowSummary row={row} />
+      <p className={cn("rounded-xl px-3 py-2 text-xs", locked ? "bg-muted text-muted-foreground" : "bg-amber-50 text-amber-900")}>
+        {locked
+          ? "เกิน 2 ชม. หลังบันทึก Offer แล้ว ข้อมูลผู้สมัครแก้ไม่ได้ แก้ได้เฉพาะวันเริ่มงาน (วันนี้หรือหลังจากนี้)"
+          : ctx.isAdmin
+            ? "ผู้ดูแลระบบแก้ไขได้ทุกช่อง"
+            : `แก้ไขได้ทุกช่องถึง ${clock(o.editableUntil)} น. หลังจากนั้นแก้ได้เฉพาะวันเริ่มงาน`}
+      </p>
+      <FormError message={errors.form} />
+
+      <div className="grid grid-cols-[8rem_1fr] gap-3">
+        <Field id={id("title")} label="คำนำหน้า" error={errors.title}>
+          <Dropdown id={id("title")} value={title} onChange={(v) => (setTitle(v), clear("title"))} options={TITLES.map((t) => ({ value: t, label: t }))} disabled={locked} invalid={Boolean(errors.title)} />
+        </Field>
+        <Field id={id("first")} label="ชื่อ" error={errors.firstName}>
+          <input id={id("first")} value={firstName} onChange={(e) => (setFirstName(e.target.value), clear("firstName"))} className={cn(FIELD, LOCKED)} disabled={locked} required autoComplete="off" />
+        </Field>
+      </div>
+      <Field id={id("last")} label="นามสกุล" error={errors.lastName}>
+        <input id={id("last")} value={lastName} onChange={(e) => (setLastName(e.target.value), clear("lastName"))} className={cn(FIELD, LOCKED)} disabled={locked} required autoComplete="off" />
+      </Field>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field id={id("date")} label="วันที่ Offer" error={errors.offerDate}>
+          <DatePicker id={id("date")} value={offerDate} min={ctx.minDate} max={ctx.today} onChange={(v) => (setOfferDate(v), clear("offerDate"))} disabled={locked} invalid={Boolean(errors.offerDate)} />
+        </Field>
+        <Field id={id("channel")} label="Sourcing Channel" error={errors.channel}>
+          <Dropdown id={id("channel")} value={channel} onChange={(v) => (setChannel(v), clear("channel"))} options={channels.map((c) => ({ value: c, label: c }))} searchable disabled={locked} invalid={Boolean(errors.channel)} />
+        </Field>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field id={id("start")} label="วันเริ่มงาน" error={errors.startDate} hint={locked ? "เลือกได้ตั้งแต่วันนี้" : undefined}>
+          <DatePicker id={id("start")} value={startDate} min={locked ? ctx.today : offerDate || undefined} clearable={!locked} onChange={(v) => (setStartDate(v), clear("startDate"))} invalid={Boolean(errors.startDate)} />
+        </Field>
+        <Field id={id("phone")} label="เบอร์โทร" error={errors.phone}>
+          <input id={id("phone")} type="tel" inputMode="tel" value={phone} onChange={(e) => (setPhone(e.target.value), clear("phone"))} className={cn(FIELD, LOCKED)} disabled={locked} autoComplete="off" />
+        </Field>
+      </div>
+
+      <DialogFooter>
+        <button type="submit" disabled={pending} className="h-10 rounded-full bg-ink-chip px-6 text-sm font-medium text-white outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-60">
+          {pending ? "กำลังบันทึก…" : locked ? "บันทึกวันเริ่มงาน" : "บันทึกการแก้ไข"}
         </button>
       </DialogFooter>
     </form>
@@ -358,10 +446,11 @@ function AdminEditForm({ row, ctx, onDone }: { row: TrackingRow; ctx: EditContex
   );
 }
 
-type Action = "offer" | "Hold" | "Cancel" | "turndown" | "edit";
-const ACTION_LABEL: Record<Action, string> = { offer: "กรอก Offer", Hold: "ขอพัก (Hold)", Cancel: "ขอยกเลิก", turndown: "ข้อมูล Offer", edit: "แก้ไข (ผู้ดูแล)" };
+type Action = "offer" | "offerEdit" | "Hold" | "Cancel" | "turndown" | "edit";
+const ACTION_LABEL: Record<Action, string> = { offer: "กรอก Offer", offerEdit: "ข้อมูล Offer", Hold: "ขอพัก (Hold)", Cancel: "ขอยกเลิก", turndown: "Turndown", edit: "แก้ไข (ผู้ดูแล)" };
 const ACTION_HINT: Record<Action, string> = {
   offer: "บันทึกผู้ได้รับ Offer ของตำแหน่งนี้",
+  offerEdit: "ดูหรือแก้ข้อมูล Offer และกำหนดวันเริ่มงาน",
   Hold: "ส่งคำขอพร้อมรูปหลักฐาน ให้ผู้ดูแลระบบอนุมัติ",
   Cancel: "ส่งคำขอพร้อมรูปหลักฐาน ให้ผู้ดูแลระบบอนุมัติ",
   turndown: "ถ้าผู้สมัครปฏิเสธ ให้บันทึก Turndown",
@@ -369,7 +458,7 @@ const ACTION_HINT: Record<Action, string> = {
 };
 
 function actionsFor(target: NonNullable<DialogTarget>, ctx: EditContext): Action[] {
-  const base: Action[] = target.mode === "offer" ? ["offer", "Hold", "Cancel"] : target.mode === "turndown" ? ["turndown"] : [];
+  const base: Action[] = target.mode === "offer" ? ["offer", "Hold", "Cancel"] : target.mode === "turndown" ? (target.row.offer ? ["offerEdit", "turndown"] : ["turndown"]) : [];
   return ctx.isAdmin ? [...base, "edit"] : base;
 }
 
@@ -421,6 +510,8 @@ export function RequisitionDialog({ target, ctx, onClose }: { target: DialogTarg
             {/* key resets the form when another row or tab is opened */}
             {action === "turndown" ? (
               <TurndownForm key={target.row.id} row={target.row} ctx={ctx} onDone={close} />
+            ) : action === "offerEdit" ? (
+              <OfferEditForm key={`${target.row.id}-offer`} row={target.row} ctx={ctx} onDone={close} />
             ) : action === "offer" ? (
               <OfferForm key={target.row.id} row={target.row} ctx={ctx} onDone={close} />
             ) : action === "edit" ? (

@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { ExportLink } from "@/components/export-link";
 import { PageHeader } from "@/components/page-header";
 import { getSessionUser } from "@/lib/auth/session-user";
 import { formatThaiDate } from "@/lib/domain/dates";
@@ -74,7 +75,7 @@ async function ProcessContent() {
 export default function ProcessPage() {
   return (
     <div className="space-y-4">
-      <PageHeader title={TITLE} description={DESCRIPTION} />
+      <PageHeader title={TITLE} description={DESCRIPTION} actions={<ExportLink href="/api/export/reviews" />} />
       <Suspense fallback={<p className="py-12 text-center text-muted-foreground">กำลังโหลดข้อมูล…</p>}>
         <ProcessContent />
       </Suspense>

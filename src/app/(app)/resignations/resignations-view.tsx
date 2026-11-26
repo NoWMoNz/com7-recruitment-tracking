@@ -2,16 +2,17 @@
 
 import { useEffect, useId, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Download, RotateCcw, Search, UserMinus } from "lucide-react";
+import { Download, Plus, RotateCcw, Search, UserMinus } from "lucide-react";
 import { StatusBadge } from "@/components/status-badge";
+import { DatePicker } from "@/components/ui/date-picker";
 import { DateRangePicker, type DateRangeValue } from "@/components/ui/date-range-picker";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Dropdown } from "@/components/ui/dropdown";
 import { formatThaiDate } from "@/lib/domain/dates";
-import { filterResignRows, NOTE_MAX, RESIGN_STATE_LABEL, type ResignRow, type ResignState } from "@/lib/domain/resign";
+import { filterResignRows, NOTE_MAX, RESIGN_STATE_LABEL, RESIGN_TITLES, type ResignRow, type ResignState } from "@/lib/domain/resign";
 import { cn } from "@/lib/utils";
 import { Field, FIELD, FormError, useSubmit } from "../form-bits";
-import { withdrawResignation } from "./actions";
+import { addResignation, withdrawResignation } from "./actions";
 
 const CARD = "rounded-3xl bg-white shadow-[0_1px_2px_rgba(0,0,0,0.04),0_8px_30px_rgba(0,0,0,0.05)] ring-1 ring-black/5";
 const STATE_CHIP: Record<ResignState, string> = {
@@ -81,7 +82,62 @@ function WithdrawForm({ row, onDone }: { row: ResignRow; onDone: () => void }) {
   );
 }
 
-export function ResignationsView({ rows }: { rows: ResignRow[] }) {
+type Option = { value: string; label: string };
+
+/** Add a resignation without going to the Sheet. */
+function AddForm({ branches, positions, isAdmin, onDone }: { branches: Option[]; positions: Option[]; isAdmin: boolean; onDone: () => void }) {
+  const uid = useId();
+  const [v, setV] = useState({ employeeId: "", title: "นาย", firstName: "", lastName: "", branchCode: "", positionCode: "", effectiveDate: "" });
+  const { pending, errors, run, clear } = useSubmit(onDone);
+  const set = (k: keyof typeof v, val: string) => {
+    setV((s) => ({ ...s, [k]: val }));
+    clear(k);
+  };
+  const text = (k: "employeeId" | "firstName" | "lastName", label: string) => (
+    <Field id={`${uid}-${k}`} label={label} error={errors[k]}>
+      <input id={`${uid}-${k}`} value={v[k]} onChange={(e) => set(k, e.target.value)} className={FIELD} aria-invalid={Boolean(errors[k])} autoComplete="off" />
+    </Field>
+  );
+  return (
+    <form
+      className="grid gap-4"
+      onSubmit={(e) => {
+        e.preventDefault();
+        run(() => addResignation(v), "เพิ่มรายชื่อลาออกแล้ว");
+      }}
+    >
+      <FormError message={errors.form} />
+      {text("employeeId", "รหัสพนักงาน")}
+      <div className="grid gap-4 sm:grid-cols-[8rem_1fr_1fr]">
+        <Field id={`${uid}-title`} label="คำนำหน้า" error={errors.title}>
+          <Dropdown id={`${uid}-title`} value={v.title} onChange={(x) => set("title", x)} options={RESIGN_TITLES.map((t) => ({ value: t, label: t }))} invalid={Boolean(errors.title)} />
+        </Field>
+        {text("firstName", "ชื่อ")}
+        {text("lastName", "นามสกุล")}
+      </div>
+      <Field id={`${uid}-branch`} label="สาขา" error={errors.branchCode}>
+        <Dropdown id={`${uid}-branch`} value={v.branchCode} onChange={(x) => set("branchCode", x)} options={branches} placeholder="เลือกสาขา" searchable invalid={Boolean(errors.branchCode)} />
+      </Field>
+      <Field id={`${uid}-position`} label="ตำแหน่ง" error={errors.positionCode}>
+        <Dropdown id={`${uid}-position`} value={v.positionCode} onChange={(x) => set("positionCode", x)} options={positions} placeholder="เลือกตำแหน่ง" invalid={Boolean(errors.positionCode)} />
+      </Field>
+      <Field id={`${uid}-date`} label="วันที่มีผลลาออก" error={errors.effectiveDate}>
+        <DatePicker id={`${uid}-date`} value={v.effectiveDate} onChange={(x) => set("effectiveDate", x)} invalid={Boolean(errors.effectiveDate)} />
+      </Field>
+      <p className="rounded-xl bg-muted/70 px-3 py-2 text-xs text-foreground/75">
+        {isAdmin ? "ระบบจะประมวลผลให้ทันที และเปิดตำแหน่งว่างตามวันที่มีผล" : "รายชื่อจะขึ้นในหน้านี้หลังผู้ดูแลระบบกดประมวลผล"}
+      </p>
+      <DialogFooter>
+        <button type="submit" disabled={pending} className="h-10 rounded-full bg-ink-chip px-6 text-sm font-medium text-white outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-60">
+          {pending ? "กำลังบันทึก…" : "เพิ่มรายชื่อ"}
+        </button>
+      </DialogFooter>
+    </form>
+  );
+}
+
+export function ResignationsView({ rows, canAdd, isAdmin, branches, positions }: { rows: ResignRow[]; canAdd: boolean; isAdmin: boolean; branches: Option[]; positions: Option[] }) {
+  const [adding, setAdding] = useState(false);
   const [target, setTarget] = useState<ResignRow | null>(null);
   const [bu, setBu] = useState("");
   const [region, setRegion] = useState("");
@@ -161,16 +217,28 @@ export function ResignationsView({ rows }: { rows: ResignRow[] }) {
             ล้างตัวกรอง
           </button>
         )}
-        <a href={exportHref} className="ml-auto inline-flex h-10 items-center gap-1.5 rounded-full bg-ink-chip px-4 text-sm font-medium text-white outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
-          <Download className="size-4" aria-hidden />
-          Export Excel
-        </a>
+        <span className="ml-auto flex items-center gap-2">
+          {canAdd && (
+            <button
+              type="button"
+              onClick={() => setAdding(true)}
+              className="inline-flex h-10 items-center gap-1.5 rounded-full bg-ink-chip px-4 text-sm font-medium text-white outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+            >
+              <Plus className="size-4" aria-hidden />
+              เพิ่มรายชื่อลาออก
+            </button>
+          )}
+          <a href={exportHref} className="inline-flex h-10 items-center gap-1.5 rounded-full bg-white px-4 text-sm font-medium ring-1 ring-black/[0.1] outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
+            <Download className="size-4" aria-hidden />
+            Export Excel
+          </a>
+        </span>
       </div>
 
       {rows.length === 0 ? (
         <div className="rounded-3xl bg-muted/60 px-6 py-14 text-center">
           <p className="font-heading text-lg">ยังไม่มีรายชื่อลาออก</p>
-          <p className="mt-1 text-sm text-muted-foreground">เมื่อผู้ดูแลระบบนำข้อมูลลาออกเข้าแท็บ Import_Resign แล้วกดประมวลผล รายชื่อจะมาอยู่ที่นี่</p>
+          <p className="mt-1 text-sm text-muted-foreground">{canAdd ? "กด “เพิ่มรายชื่อลาออก” เพื่อเริ่ม หรือนำข้อมูลเข้าแท็บ Import_Resign แล้วกดประมวลผล" : "เมื่อมีการนำข้อมูลลาออกเข้าระบบและประมวลผลแล้ว รายชื่อจะมาอยู่ที่นี่"}</p>
         </div>
       ) : shown.length === 0 ? (
         <p className={cn(CARD, "py-12 text-center text-sm text-muted-foreground")}>ไม่พบรายชื่อตามตัวกรอง</p>
@@ -231,6 +299,16 @@ export function ResignationsView({ rows }: { rows: ResignRow[] }) {
           </div>
         </section>
       )}
+
+      <Dialog open={adding} onOpenChange={setAdding}>
+        <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-3xl p-6 sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="font-heading text-xl font-medium">เพิ่มรายชื่อลาออก</DialogTitle>
+            <DialogDescription>บันทึกลงแท็บ Import_Resign ใน Google Sheet</DialogDescription>
+          </DialogHeader>
+          {adding && <AddForm branches={branches} positions={positions} isAdmin={isAdmin} onDone={() => setAdding(false)} />}
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={target !== null} onOpenChange={(o) => !o && setTarget(null)}>
         <DialogContent>

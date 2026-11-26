@@ -3,6 +3,7 @@
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
 import { countAxis, monotonePath, monotoneY } from "@/lib/chart/curve";
 import { sumTrend, type TrendMonth, type TrendPoint } from "@/lib/domain/dashboard";
+import type { PeopleFilter } from "@/lib/domain/people";
 import { cn } from "@/lib/utils";
 import type { NoteFn } from "./dashboard-tips";
 import { CARD } from "./dashboard-ui";
@@ -50,7 +51,7 @@ function change(v: number, prev: number | undefined) {
  * Monthly trend as smooth lines. Point the chart at a month to see every figure for it; hover a legend item to follow
  * one line, click it to hide or show it. The last stretch is dashed because the current month is not over yet.
  */
-export function TrendChart({ trend, region, bu = "", onNote }: { trend: TrendMonth[]; region: string; bu?: string; onNote?: NoteFn }) {
+export function TrendChart({ trend, region, bu = "", people = {}, onNote }: { trend: TrendMonth[]; region: string; bu?: string; people?: PeopleFilter; onNote?: NoteFn }) {
   const uid = useId().replace(/:/g, "");
   const [box, width] = useWidth();
   const [range, setRange] = useState<(typeof RANGES)[number]>(6);
@@ -59,7 +60,7 @@ export function TrendChart({ trend, region, bu = "", onNote }: { trend: TrendMon
   // Where the pointer is on the chart, in px. The marker follows it freely; `at` is the month it is closest to.
   const [cursor, setCursor] = useState<number | null>(null);
 
-  const points: TrendPoint[] = useMemo(() => sumTrend(trend, region, bu).slice(-range), [trend, region, bu, range]);
+  const points: TrendPoint[] = useMemo(() => sumTrend(trend, { region, bu, ...people }).slice(-range), [trend, region, bu, people, range]);
   const shown = SERIES.filter((s) => !hidden.has(s.key));
   const n = points.length;
   const { top, ticks } = useMemo(() => countAxis(Math.max(0, ...points.flatMap((p) => shown.map((s) => p[s.key])))), [points, shown]);

@@ -1,4 +1,5 @@
-import { formatThaiDate, todayBangkok } from "./dates";
+import { peopleOfBranch } from "./people";
+import { formatThaiDate, parseUserDate, todayBangkok } from "./dates";
 import type { Plan } from "./offer";
 import { inScope, normalizeEmail } from "./permissions";
 import type { Numbered } from "./processor";
@@ -17,6 +18,9 @@ export interface ResignRow {
   bu: string;
   region: string;
   province: string;
+  /** Area / Regional Manager of the branch; "" when not set. */
+  am: string;
+  rm: string;
   branchCode: string;
   branchName: string;
   positionName: string;
@@ -31,6 +35,8 @@ export interface ResignRow {
   /** The requisition the processor opened for this resignation, if it can be found. */
   reqId: string | null;
   reqStatus: Status | null;
+  /** Owner (email) of that requisition; "" when there is none. */
+  reqTaEmail: string;
   canWithdraw: boolean;
 }
 
@@ -82,6 +88,7 @@ export function buildResignRows(
       bu: buOf(b),
       region: b?.region || UNKNOWN_REGION,
       province: b?.province ?? "",
+      ...peopleOfBranch(b),
       branchCode: row.branch_code,
       branchName: b?.branch_name || row.branch_code,
       positionName: positions.get(row.position_code)?.position_name || row.position_code,
@@ -93,6 +100,7 @@ export function buildResignRows(
       cancelNote: row.cancel_note,
       reqId: linkedReq?.id ?? null,
       reqStatus: linkedReq?.status ?? null,
+      reqTaEmail: linkedReq?.ta_email ?? "",
       canWithdraw: !withdrawn && (viewer.role === "ta" || viewer.role === "super_admin"),
     });
   }
@@ -195,4 +203,82 @@ export function planWithdrawal(args: {
   }
 
   return done("recorded");
+}
+
+export const RESIGN_TITLES = ["นาย", "นาง", "นางสาว"] as const;
+
+export interface NewResignInput {
+  employeeId: string;
+  title: string;
+  firstName: string;
+  lastName: string;
+  branchCode: string;
+  positionCode: string;
+  /** yyyy-mm-dd, or dd/mm/yyyy as typed. */
+  effectiveDate: string;
+}
+
+/**
+ * A resignation typed in the web instead of the Import_Resign tab. The row is left unprocessed; processing turns it
+ * into a requisition dated the effective date, exactly as for a row typed in the Sheet.
+ */
+export function planNewResignation(args: {
+  input: NewResignInput;
+  /** Rows already in Import_Resign, to refuse the same person and date twice. */
+  existing: readonly ImportResign[];
+  branches: readonly Branch[];
+  positions: readonly Position[];
+  viewer: User;
+}): Plan<{ row: ImportResign }> {
+  const { input, viewer } = args;
+  if (viewer.role !== "ta" && viewer.role !== "super_admin") return { ok: false, errors: { form: "คุณไม่มีสิทธิ์เพิ่มรายชื่อลาออก" } };
+  const errors: Record<string, string> = {};
+  const text = (v: unknown) => String(v ?? "").trim();
+  const employeeId = text(input.employeeId);
+  const firstName = text(input.firstName);
+  const lastName = text(input.lastName);
+  const title = text(input.title);
+  const branchCode = text(input.branchCode);
+  const positionCode = text(input.positionCode);
+
+  if (!employeeId) errors.employeeId = "กรอกรหัสพนักงาน";
+  else if (employeeId.length > 30) errors.employeeId = "รหัสพนักงานยาวเกินไป";
+  if (!(RESIGN_TITLES as readonly string[]).includes(title)) errors.title = "เลือกคำนำหน้า";
+  if (!firstName) errors.firstName = "กรอกชื่อ";
+  else if (firstName.length > 80) errors.firstName = "ชื่อยาวเกินไป";
+  if (!lastName) errors.lastName = "กรอกนามสกุล";
+  else if (lastName.length > 80) errors.lastName = "นามสกุลยาวเกินไป";
+
+  const branch = args.branches.find((b) => b.branch_code === branchCode);
+  if (!branch) errors.branchCode = "เลือกสาขา";
+  else if (branch.status === "Closed") errors.branchCode = "สาขานี้ปิดแล้ว";
+  else if (!inScope(viewer, branch)) errors.branchCode = "สาขานี้อยู่นอกขอบเขตของคุณ";
+  if (!args.positions.some((p) => p.position_code === positionCode)) errors.positionCode = "เลือกตำแหน่ง";
+
+  const effectiveDate = parseUserDate(text(input.effectiveDate));
+  if (!effectiveDate) errors.effectiveDate = "เลือกวันที่มีผล";
+
+  if (!errors.employeeId && effectiveDate && args.existing.some((r) => r.employee_id.trim() === employeeId && r.effective_date === effectiveDate)) {
+    errors.employeeId = `มีรายชื่อรหัส ${employeeId} ที่มีผลวันที่ ${formatThaiDate(effectiveDate)} อยู่แล้ว`;
+  }
+  if (Object.keys(errors).length || !effectiveDate) return { ok: false, errors };
+
+  return {
+    ok: true,
+    value: {
+      row: {
+        employee_id: employeeId,
+        title,
+        first_name: firstName,
+        last_name: lastName,
+        branch_code: branchCode,
+        position_code: positionCode,
+        effective_date: effectiveDate,
+        processed_at: "",
+        cancelled_at: "",
+        cancelled_by: "",
+        cancel_note: "",
+      },
+    },
+  };
 }

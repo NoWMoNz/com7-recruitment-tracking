@@ -6,9 +6,11 @@ import { ArrowDown, ArrowUp, Briefcase, Download, Gauge, Map as MapIcon, MapPin,
 import { BAND_CLASS, BAND_LABEL } from "@/components/aging-badge";
 import { PageHeader } from "@/components/page-header";
 import { DateRangePicker, type DateRangeValue } from "@/components/ui/date-range-picker";
+import { PeopleFilters } from "@/components/people-filters";
 import { Dropdown } from "@/components/ui/dropdown";
 import { longestOpen, momentum, nearSla, offersWaiting, provinceStats, statsOf, summarize, sumTrend, type RowStats, type TrendMonth } from "@/lib/domain/dashboard";
-import type { ManpowerGap, OfferOutcome, UpcomingResign } from "@/lib/domain/outlook";
+import type { OfferOutcome, UpcomingResign } from "@/lib/domain/outlook";
+import { matchesPeople, peopleOptions, type People, type PeopleFilter } from "@/lib/domain/people";
 import type { AgingBand } from "@/lib/domain/tat";
 import type { TrackingRow } from "@/lib/domain/tracking";
 import { cn } from "@/lib/utils";
@@ -22,21 +24,18 @@ import { TipNote, TipProvider, TipRow, TipTitle, useTip } from "./hover-tip";
 
 interface Props {
   rows: TrackingRow[];
-  /** Region and BU of each hire / turndown this month. */
-  hiredRegions: { region: string; bu: string }[];
-  turndownRegions: { region: string; bu: string }[];
+  /** Region, BU, AM, RM and TA of each hire / turndown this month. */
+  hiredRegions: ({ region: string; bu: string } & People)[];
+  turndownRegions: ({ region: string; bu: string } & People)[];
   trend: TrendMonth[];
   approvals: ApprovalItem[];
   holds: HoldItem[];
-  /** Resignations still to take effect, HR shortages no requisition covers, and the Offers of the last 90 days. */
+  /** Resignations still to take effect and the Offers of the last 90 days. */
   resigns: UpcomingResign[];
-  gaps: ManpowerGap[];
-  hasQuota: boolean;
   outcomes: OfferOutcome[];
   today: string;
   isAdmin: boolean;
   title: string;
-  description: string;
 }
 
 /** Half-circle meter in the spirit of the temperature dial in the reference. */
@@ -205,17 +204,20 @@ export function DashboardView(props: Props) {
   );
 }
 
-function DashboardBody({ rows: allRows, hiredRegions, turndownRegions, trend, approvals, holds, resigns, gaps, hasQuota, outcomes, today, isAdmin, title, description }: Props) {
+function DashboardBody({ rows: allRows, hiredRegions, turndownRegions, trend, approvals, holds, resigns, outcomes, today, isAdmin, title }: Props) {
   const { bind } = useTip();
   const [region, setRegion] = useState("");
   // Request date (วันที่แจ้งสรรหา); null = every date. Everything below counts only the positions requested in it.
   const [range, setRange] = useState<DateRangeValue>(null);
   // Business unit (Group ใหญ่); "" = every BU. Like the date range, it narrows every card on the page.
   const [bu, setBu] = useState("");
+  // AM / RM / TA; like BU, they narrow every card on the page.
+  const [people, setPeople] = useState<PeopleFilter>({});
   const buNames = useMemo(() => [...new Set(allRows.map((r) => r.bu))].sort((a, b) => a.localeCompare(b, "th")), [allRows]);
+  const peopleChoices = useMemo(() => peopleOptions(allRows), [allRows]);
   const rows = useMemo(
-    () => allRows.filter((r) => (!bu || r.bu === bu) && (!range || (r.requestDate >= range.from && r.requestDate <= range.to))),
-    [allRows, bu, range],
+    () => allRows.filter((r) => (!bu || r.bu === bu) && matchesPeople(r, people) && (!range || (r.requestDate >= range.from && r.requestDate <= range.to))),
+    [allRows, bu, people, range],
   );
 
   const regionNames = useMemo(() => [...new Set(allRows.map((r) => r.region))], [allRows]);
@@ -230,8 +232,8 @@ function DashboardBody({ rows: allRows, hiredRegions, turndownRegions, trend, ap
   const scoped = useMemo(() => (province ? inRegion.filter((r) => normalizeProvince(r.province) === province) : inRegion), [inRegion, province]);
   const s = useMemo(() => summarize(scoped), [scoped]);
   // This month against last. The trend is kept per region, so a picked province has no figures of its own.
-  const mo = useMemo(() => momentum(sumTrend(trend, region, bu)), [trend, region, bu]);
-  const thisMonth = (x: { region: string; bu: string }) => (!region || x.region === region) && (!bu || x.bu === bu);
+  const mo = useMemo(() => momentum(sumTrend(trend, { region, bu, ...people })), [trend, region, bu, people]);
+  const thisMonth = (x: { region: string; bu: string } & People) => (!region || x.region === region) && (!bu || x.bu === bu) && matchesPeople(x, people);
   const hired = province ? 0 : hiredRegions.filter(thisMonth).length;
   const [attention, setAttention] = useState<AttentionTab>("longest");
   // Provinces another card is pointing at; the map lights them and dims the rest.
@@ -241,18 +243,18 @@ function DashboardBody({ rows: allRows, hiredRegions, turndownRegions, trend, ap
   const [note, setNote] = useState<SummaryNote | null>(null);
   const [focus, setFocus] = useState<{ match: (r: TrackingRow) => boolean; label: string } | null>(null);
 
-  const inView = (x: { region: string; province: string; bu: string }) => (!bu || x.bu === bu) && (!region || x.region === region) && (!province || normalizeProvince(x.province) === province);
-  const scopedApprovals = useMemo(() => approvals.filter(inView), [approvals, region, province, bu]); // eslint-disable-line react-hooks/exhaustive-deps
-  const scopedHolds = useMemo(() => holds.filter(inView), [holds, region, province, bu]); // eslint-disable-line react-hooks/exhaustive-deps
-  const scopedResigns = useMemo(() => resigns.filter(inView), [resigns, region, province, bu]); // eslint-disable-line react-hooks/exhaustive-deps
-  const scopedGaps = useMemo(() => gaps.filter(inView), [gaps, region, province, bu]); // eslint-disable-line react-hooks/exhaustive-deps
-  const scopedOutcomes = useMemo(() => outcomes.filter(inView), [outcomes, region, province, bu]); // eslint-disable-line react-hooks/exhaustive-deps
+  const inView = (x: { region: string; province: string; bu: string } & People) =>
+    (!bu || x.bu === bu) && (!region || x.region === region) && (!province || normalizeProvince(x.province) === province) && matchesPeople(x, people);
+  const scopedApprovals = useMemo(() => approvals.filter(inView), [approvals, region, province, bu, people]); // eslint-disable-line react-hooks/exhaustive-deps
+  const scopedHolds = useMemo(() => holds.filter(inView), [holds, region, province, bu, people]); // eslint-disable-line react-hooks/exhaustive-deps
+  const scopedResigns = useMemo(() => resigns.filter(inView), [resigns, region, province, bu, people]); // eslint-disable-line react-hooks/exhaustive-deps
+  const scopedOutcomes = useMemo(() => outcomes.filter(inView), [outcomes, region, province, bu, people]); // eslint-disable-line react-hooks/exhaustive-deps
   const longestAll = useMemo(() => longestOpen(scoped, Infinity), [scoped]);
   const nearAll = useMemo(() => nearSla(scoped, undefined, Infinity), [scoped]);
   const waitingAll = useMemo(() => offersWaiting(scoped, today, Infinity), [scoped, today]);
   const pStats = useMemo(() => provinceStats(inRegion), [inRegion]);
   const turndowns = turndownRegions.filter(thisMonth).length;
-  const exportHref = `/api/export?tab=monthly${region ? `&region=${encodeURIComponent(region)}` : ""}${bu ? `&bu=${encodeURIComponent(bu)}` : ""}`;
+  const exportHref = `/api/export?${new URLSearchParams(Object.entries({ tab: "monthly", region, bu, ...people }).filter((e): e is [string, string] => Boolean(e[1])))}`;
   // Moving from one item to the next must not flash the overview in between: clearing waits a moment and is cancelled by the next hover.
   const settle = useSettle();
   const spotRows = useCallback<SpotFn>(
@@ -337,7 +339,6 @@ function DashboardBody({ rows: allRows, hiredRegions, turndownRegions, trend, ap
     <div className="space-y-4">
         <PageHeader
           title={title}
-          description={description}
           actions={
             <a
               href={exportHref}
@@ -369,6 +370,7 @@ function DashboardBody({ rows: allRows, hiredRegions, turndownRegions, trend, ap
             BU
           </label>
           <Dropdown id="dash-bu" variant="pill" value={bu} onChange={setBu} emptyLabel="ทุก BU" options={buNames.map((b) => ({ value: b, label: b }))} className="w-36" />
+          <PeopleFilters idPrefix="dash" value={people} onChange={setPeople} options={peopleChoices} />
           <DateRangePicker id="dash-range" allowAll allLabel="ทุกวันที่แจ้งสรรหา" value={range} onChange={setRange} aria-label="วันที่แจ้งสรรหา" className="w-64" />
         </div>
         <div className="grid gap-4 lg:grid-cols-[21rem_minmax(0,1fr)]">
@@ -492,7 +494,7 @@ function DashboardBody({ rows: allRows, hiredRegions, turndownRegions, trend, ap
                             <>
                               <p>
                                 Offer เดือนนี้ใช้เฉลี่ย{" "}
-                                <span className={cn("font-heading text-sm font-medium tabular-nums", mo.avgSla !== null && mo.avgTat > mo.avgSla ? "text-[#b91c1c]" : "text-[#177a43]")}>{mo.avgTat}</span> วัน จาก SLA {mo.avgSla}
+                                <span className={cn("font-heading text-sm font-medium tabular-nums", mo.avgSla !== null && mo.avgTat > mo.avgSla ? "text-[#b91c1c]" : "text-[#177a43]")}>{mo.avgTat}</span> วัน
                               </p>
                               {mo.tatDelta !== null && <Change delta={mo.tatDelta} down="เร็วขึ้น" up="ช้าลง" unit=" วัน" since="เดือนก่อน" />}
                             </>
@@ -542,7 +544,7 @@ function DashboardBody({ rows: allRows, hiredRegions, turndownRegions, trend, ap
 
                 <ActionTiles approvals={scopedApprovals} holds={scopedHolds} near={nearAll} isAdmin={isAdmin} onShowNearSla={showNearSla} onSpot={spotRows} onNote={showNote} />
 
-                <OutlookTiles resigns={scopedResigns} gaps={scopedGaps} hasQuota={hasQuota} outcomes={scopedOutcomes} today={today} onNote={showNote} />
+                <OutlookTiles resigns={scopedResigns} outcomes={scopedOutcomes} today={today} onNote={showNote} />
 
                 <div className="grid gap-4 xl:grid-cols-2">
                   <AttentionCard
@@ -665,7 +667,7 @@ function DashboardBody({ rows: allRows, hiredRegions, turndownRegions, trend, ap
                       ))}
                     </ul>
                   </section>
-                  <TrendChart trend={trend} region={region} bu={bu} onNote={showNote} />
+                  <TrendChart trend={trend} region={region} bu={bu} people={people} onNote={showNote} />
                   </div>
                 </div>
               </>

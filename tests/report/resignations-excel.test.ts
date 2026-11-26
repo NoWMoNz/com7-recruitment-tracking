@@ -6,8 +6,8 @@ vi.mock("server-only", () => ({}));
 const { buildResignationsWorkbook } = await import("@/lib/report/excel");
 
 const row = (p: Partial<ResignRow>): ResignRow => ({
-  cancelledDay: "", rowNumber: 2, employeeId: "E100", name: "นายก ข", bu: "Apple", region: "ภาคกลาง", province: "กรุงเทพมหานคร", branchCode: "BKK-012", branchName: "ลาดพร้าว",
-  positionName: "Sales", effectiveDate: "2026-11-20", state: "resigned", cancelledAt: "", cancelledBy: "", cancelNote: "", reqId: "R1", reqStatus: "Vacancy", canWithdraw: true, ...p,
+  cancelledDay: "", rowNumber: 2, employeeId: "E100", name: "นายก ข", bu: "Apple", region: "ภาคกลาง", province: "กรุงเทพมหานคร", am: "", rm: "", branchCode: "BKK-012", branchName: "ลาดพร้าว",
+  positionName: "Sales", effectiveDate: "2026-11-20", state: "resigned", cancelledAt: "", cancelledBy: "", cancelNote: "", reqId: "R1", reqStatus: "Vacancy", reqTaEmail: "", canWithdraw: true, ...p,
 });
 
 describe("buildResignationsWorkbook", () => {
@@ -22,9 +22,9 @@ describe("buildResignationsWorkbook", () => {
     expect(wb.worksheets.map((w) => w.name)).toEqual(["รายชื่อลาออก"]);
     const ws = wb.worksheets[0];
     const values = (n: number) => (ws.getRow(n).values as unknown[]).slice(1);
-    expect(values(2)).toEqual(["รหัสพนักงาน", "ชื่อ", "BU", "ภาค", "สาขา", "ตำแหน่ง", "วันที่มีผล", "สถานะ", "สถานะตำแหน่ง", "ยกเลิกเมื่อ", "ยกเลิกโดย", "เหตุผล"]);
+    expect(values(2)).toEqual(["รหัสพนักงาน", "ชื่อ", "BU", "ภาค", "สาขา", "ตำแหน่ง", "วันที่มีผล", "สถานะ", "สถานะตำแหน่ง", "ยกเลิกเมื่อ", "ยกเลิกโดย", "เหตุผล", "AM", "RM"]);
     expect(values(3).slice(0, 8)).toEqual(["E100", "นายก ข", "Apple", "ภาคกลาง", "ลาดพร้าว", "Sales", "20/11/2026", "ลาออกแล้ว"]);
-    expect(values(4)).toEqual(["E200", "นางสาวค ง", "Apple", "ภาคกลาง", "ลาดพร้าว", "Sales", "20/11/2026", "ยกเลิกลาออก", "ยกเลิก", "18/11/2026", "มายด์", "อยู่ต่อ"]);
+    expect(values(4)).toEqual(["E200", "นางสาวค ง", "Apple", "ภาคกลาง", "ลาดพร้าว", "Sales", "20/11/2026", "ยกเลิกลาออก", "ยกเลิก", "18/11/2026", "มายด์", "อยู่ต่อ", "-", "-"]);
   });
 
   test("the withdrawal date column uses cancelledDay, so a hand-typed value cannot crash the export", async () => {

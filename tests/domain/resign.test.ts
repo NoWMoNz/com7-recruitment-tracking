@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { buildResignRows, filterResignRows, planWithdrawal, resignRef } from "@/lib/domain/resign";
+import { buildResignRows, filterResignRows, planNewResignation, planWithdrawal, resignRef } from "@/lib/domain/resign";
 import type { Branch, ImportResign, Offer, Requisition, Status, StatusLogEntry } from "@/lib/domain/types";
 import { branch, offer, positions, req, user } from "./helpers";
 
@@ -241,3 +241,46 @@ describe("planWithdrawal", () => {
   });
 });
 
+describe("planNewResignation", () => {
+  const input = { employeeId: " E900 ", title: "นาย", firstName: "ก", lastName: "ข", branchCode: "BKK-012", positionCode: "SALES", effectiveDate: "2026-12-01" };
+  const plan = (over: Partial<typeof input> = {}, existing: ImportResign[] = [], who = mind) => planNewResignation({ input: { ...input, ...over }, existing, branches, positions, viewer: who });
+
+  test("makes an unprocessed Import_Resign row with the date and ids cleaned up", () => {
+    const res = plan();
+    expect(res.ok && res.value.row).toEqual({
+      employee_id: "E900", title: "นาย", first_name: "ก", last_name: "ข", branch_code: "BKK-012", position_code: "SALES",
+      effective_date: "2026-12-01", processed_at: "", cancelled_at: "", cancelled_by: "", cancel_note: "",
+    });
+  });
+
+  test("accepts a date typed as dd/mm/yyyy", () => {
+    const res = plan({ effectiveDate: "01/12/2026" });
+    expect(res.ok && res.value.row.effective_date).toBe("2026-12-01");
+  });
+
+  test("asks for every missing piece", () => {
+    const res = plan({ employeeId: "", firstName: "", lastName: " ", title: "x", branchCode: "", positionCode: "", effectiveDate: "" });
+    expect(!res.ok && Object.keys(res.errors).sort()).toEqual(["branchCode", "effectiveDate", "employeeId", "firstName", "lastName", "positionCode", "title"]);
+  });
+
+  test("refuses a closed branch, an unknown branch and a branch outside the viewer scope", () => {
+    const closed = branch({ branch_code: "OLD", status: "Closed" });
+    const r1 = planNewResignation({ input: { ...input, branchCode: "OLD" }, existing: [], branches: [...branches, closed], positions, viewer: ju });
+    expect(!r1.ok && r1.errors.branchCode).toBe("สาขานี้ปิดแล้ว");
+    expect(plan({ branchCode: "NOPE" }).ok).toBe(false);
+    const r3 = plan({}, [], north);
+    expect(!r3.ok && r3.errors.branchCode).toBe("สาขานี้อยู่นอกขอบเขตของคุณ");
+  });
+
+  test("refuses the same person and effective date twice, but allows another date", () => {
+    const existing = [resign({ employee_id: "E900", effective_date: "2026-12-01" })];
+    const dup = plan({}, existing);
+    expect(!dup.ok && dup.errors.employeeId).toContain("E900");
+    expect(plan({ effectiveDate: "2026-12-15" }, existing).ok).toBe(true);
+  });
+
+  test("a viewer cannot add", () => {
+    const res = plan({}, [], viewer);
+    expect(!res.ok && res.errors.form).toBe("คุณไม่มีสิทธิ์เพิ่มรายชื่อลาออก");
+  });
+});

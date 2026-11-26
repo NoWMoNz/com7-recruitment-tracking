@@ -1,4 +1,6 @@
-import { inScope } from "./permissions";
+import type { RecruiterAssignment } from "@/lib/repo/types";
+import { branchTaOf, matchesPeople, peopleOfBranch, type PeopleFilter } from "./people";
+import { inScope, normalizeEmail } from "./permissions";
 import { buOf, ON_PROCESS, type Branch, type LocalDate, type Position, type QuotaLine, type Requisition, type User } from "./types";
 
 /** Short = fewer people than quota in some position; over = more (and nothing short); full = every position on quota. */
@@ -10,11 +12,17 @@ export interface ManpowerPosition {
   positionCode: string;
   positionName: string;
   quota: number;
+  /** People on the payroll in HR's report. */
+  hrActual: number;
+  /** Candidates who have accepted an Offer and not started yet. */
+  offers: number;
+  /** hrActual + offers: an Offer already fills the seat, so it counts here and no longer as a shortage. */
   actual: number;
   short: number;
   over: number;
-  /** Requisitions of this branch and position that are in progress in the system (date reached, not on hold or closed). */
+  /** Requisitions still being recruited for (Vacancy or waiting on an approval; an Offer is not open any more). */
   open: number;
+  status: ManpowerStatus;
   match: OpenMatch;
 }
 
@@ -24,7 +32,14 @@ export interface ManpowerRow {
   bu: string;
   region: string;
   province: string;
+  /** Area / Regional Manager of the branch and the TA it belongs to (see branchTaOf); "" when not known. */
+  am: string;
+  rm: string;
+  taEmail: string;
+  taName: string;
   quota: number;
+  hrActual: number;
+  offers: number;
   actual: number;
   /** Sum over positions of max(0, quota − actual), so a surplus in one position never hides a shortage in another. */
   short: number;
@@ -35,7 +50,7 @@ export interface ManpowerRow {
   positions: ManpowerPosition[];
 }
 
-export interface ManpowerFilter {
+export interface ManpowerFilter extends PeopleFilter {
   bu?: string;
   region?: string;
   status?: ManpowerStatus;
@@ -46,6 +61,7 @@ export const MANPOWER_STATUS_LABEL: Record<ManpowerStatus, string> = { short: "�
 export const OPEN_MATCH_LABEL: Record<OpenMatch, string> = { match: "ตรงกัน", fewer: "เปิดไม่ครบ", more: "เปิดเกิน" };
 
 const UNKNOWN_REGION = "ไม่ระบุ";
+const statusOf = (short: number, over: number): ManpowerStatus => (short > 0 ? "short" : over > 0 ? "over" : "full");
 const matchOf = (open: number, short: number): OpenMatch => (open === short ? "match" : open < short ? "fewer" : "more");
 
 /**
@@ -53,18 +69,22 @@ const matchOf = (open: number, short: number): OpenMatch => (open === short ? "m
  * viewer's scope are left out; `closedBranches` counts the closed ones the viewer could have seen.
  */
 export function buildManpowerRows(
-  d: { quota: QuotaLine[]; requisitions: Requisition[]; branches: Branch[]; positions: Position[] },
+  d: { quota: QuotaLine[]; requisitions: Requisition[]; branches: Branch[]; positions: Position[]; assignments: RecruiterAssignment[]; users: User[] },
   viewer: User,
   today: LocalDate,
 ): { rows: ManpowerRow[]; closedBranches: number } {
   const branches = new Map(d.branches.map((b) => [b.branch_code, b]));
   const positionName = new Map(d.positions.map((p) => [p.position_code, p.position_name]));
+  const userName = new Map(d.users.map((u) => [normalizeEmail(u.email), u.name]));
 
+  // An Offer is a seat already filled; every other in-progress requisition is still being recruited for.
   const open = new Map<string, number>();
+  const offered = new Map<string, number>();
   for (const r of d.requisitions) {
     if (!ON_PROCESS.includes(r.status) || r.request_date > today) continue;
     const key = `${r.branch_code}|${r.position_code}`;
-    open.set(key, (open.get(key) ?? 0) + 1);
+    const into = r.status === "Offer" ? offered : open;
+    into.set(key, (into.get(key) ?? 0) + 1);
   }
 
   const byBranch = new Map<string, QuotaLine[]>();
@@ -81,35 +101,47 @@ export function buildManpowerRows(
     }
     const positions: ManpowerPosition[] = lines
       .map((l) => {
-        const short = Math.max(0, l.quota - l.actual);
+        const offers = offered.get(`${code}|${l.position_code}`) ?? 0;
+        const actual = l.actual + offers;
+        const short = Math.max(0, l.quota - actual);
+        const over = Math.max(0, actual - l.quota);
         const o = open.get(`${code}|${l.position_code}`) ?? 0;
         return {
           positionCode: l.position_code,
           positionName: positionName.get(l.position_code) || l.position_code,
           quota: l.quota,
-          actual: l.actual,
+          hrActual: l.actual,
+          offers,
+          actual,
           short,
-          over: Math.max(0, l.actual - l.quota),
+          over,
           open: o,
+          status: statusOf(short, over),
           match: matchOf(o, short),
         };
       })
       .sort((a, b) => b.short - a.short || a.positionName.localeCompare(b.positionName, "th"));
-    const sum = (k: "quota" | "actual" | "short" | "over" | "open") => positions.reduce((n, p) => n + p[k], 0);
+    const sum = (k: "quota" | "hrActual" | "offers" | "actual" | "short" | "over" | "open") => positions.reduce((n, p) => n + p[k], 0);
     const short = sum("short");
     const over = sum("over");
+    const taEmail = branchTaOf(code, d.assignments, d.requisitions);
     rows.push({
       branchCode: code,
       branchName: b.branch_name || code,
       bu: buOf(b),
       region: b.region || UNKNOWN_REGION,
       province: b.province,
+      ...peopleOfBranch(b),
+      taEmail,
+      taName: taEmail ? userName.get(taEmail) || taEmail : "",
       quota: sum("quota"),
+      hrActual: sum("hrActual"),
+      offers: sum("offers"),
       actual: sum("actual"),
       short,
       over,
       open: sum("open"),
-      status: short > 0 ? "short" : over > 0 ? "over" : "full",
+      status: statusOf(short, over),
       match: matchOf(sum("open"), short),
       positions,
     });
@@ -124,6 +156,7 @@ export function filterManpowerRows(rows: ManpowerRow[], f: ManpowerFilter): Manp
     if (f.bu && r.bu !== f.bu) return false;
     if (f.region && r.region !== f.region) return false;
     if (f.status && r.status !== f.status) return false;
+    if (!matchesPeople(r, f)) return false;
     if (q && !`${r.branchName} ${r.branchCode}`.toLowerCase().includes(q)) return false;
     return true;
   });

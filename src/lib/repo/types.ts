@@ -113,8 +113,12 @@ export interface Repo {
    * written; one stale row throws ConflictError and nothing changes. Throws NotFoundError for a missing id.
    */
   updateMany<T extends TabName>(tab: T, items: { id: string; patch: Partial<RowOf<T>>; expectedVersion?: number }[]): Promise<void>;
-  /** Rows with their sheet row number (header = row 1), for tabs without an id column such as Import_*. */
-  listNumbered<T extends TabName>(tab: T): Promise<{ rowNumber: number; row: RowOf<T> }[]>;
+  /**
+   * Rows with their sheet row number (header = row 1), for tabs without an id column such as Import_*.
+   * Always read fresh unless `cached` is set, which pages that only display the rows may use (up to 60 seconds old);
+   * anything that writes by row number must not, or it could patch the wrong row.
+   */
+  listNumbered<T extends TabName>(tab: T, opts?: { cached?: boolean }): Promise<{ rowNumber: number; row: RowOf<T> }[]>;
   /** Patches rows by sheet row number in a single write (used to mark Import rows processed). */
   updateAt<T extends TabName>(tab: T, items: { rowNumber: number; patch: Partial<RowOf<T>> }[]): Promise<void>;
   /** Removes rows by sheet row number (tabs without an id column). Sheet rows are blanked, not shifted. */

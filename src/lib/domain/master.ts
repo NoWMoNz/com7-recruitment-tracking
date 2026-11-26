@@ -77,6 +77,8 @@ export function validateMaster(entity: MasterEntity, input: FormInput, ctx: Mast
         status,
         open_date: optionalDate(input.open_date, errors, "open_date"),
         close_date: optionalDate(input.close_date, errors, "close_date"),
+        am: text(input.am),
+        rm: text(input.rm),
       };
       if (!row.branch_name) errors.branch_name = "กรอกชื่อสาขา";
       if (!row.region) errors.region = "กรอกภาค";

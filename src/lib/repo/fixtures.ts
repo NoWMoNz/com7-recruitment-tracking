@@ -1,17 +1,17 @@
-import type { Approval, Branch, Offer, Position, Requisition, Status, StatusLogEntry, User } from "@/lib/domain/types";
+import type { Approval, Branch, NewHire, Offer, Position, Requisition, Status, StatusLogEntry, User } from "@/lib/domain/types";
 import type { Dataset } from "./types";
 
 /** Demo/test dataset. "Today" for these dates is 17/11/2026. */
 
 const branches: Branch[] = [
-  { branch_code: "BKK-012", branch_name: "เซ็นทรัลลาดพร้าว", brand: "Studio7", bu: "Apple", province: "กรุงเทพฯ", region: "ภาคกลาง", status: "Open", open_date: null, close_date: null },
-  { branch_code: "BKK-045", branch_name: "สยามพารากอน", brand: "BaNANA", bu: "BaNANA", province: "กรุงเทพฯ", region: "ภาคกลาง", status: "Open", open_date: null, close_date: null },
-  { branch_code: "NBI-003", branch_name: "เซ็นทรัลเวสต์เกต", brand: "Studio7", bu: "Apple", province: "นนทบุรี", region: "ภาคกลาง", status: "Open", open_date: null, close_date: null },
-  { branch_code: "CNX-001", branch_name: "เซ็นทรัลเฟสติวัล เชียงใหม่", brand: "Studio7", bu: "Apple", province: "เชียงใหม่", region: "ภาคเหนือ", status: "Open", open_date: null, close_date: null },
-  { branch_code: "CRI-002", branch_name: "เซ็นทรัลเชียงราย", brand: "BaNANA", bu: "BaNANA", province: "เชียงราย", region: "ภาคเหนือ", status: "Project", open_date: "2026-12-01", close_date: null },
-  { branch_code: "HKT-004", branch_name: "เซ็นทรัลภูเก็ต", brand: "Studio7", bu: "Apple", province: "ภูเก็ต", region: "ภาคใต้", status: "Open", open_date: null, close_date: null },
+  { branch_code: "BKK-012", branch_name: "เซ็นทรัลลาดพร้าว", brand: "Studio7", bu: "Apple", province: "กรุงเทพฯ", region: "ภาคกลาง", status: "Open", open_date: null, close_date: null, am: "โชคชัย", rm: "ฐกรกฤตย์" },
+  { branch_code: "BKK-045", branch_name: "สยามพารากอน", brand: "BaNANA", bu: "BaNANA", province: "กรุงเทพฯ", region: "ภาคกลาง", status: "Open", open_date: null, close_date: null, am: "สกานต์", rm: "พฤฒิชัย" },
+  { branch_code: "NBI-003", branch_name: "เซ็นทรัลเวสต์เกต", brand: "Studio7", bu: "Apple", province: "นนทบุรี", region: "ภาคกลาง", status: "Open", open_date: null, close_date: null, am: "โชคชัย", rm: "ฐกรกฤตย์" },
+  { branch_code: "CNX-001", branch_name: "เซ็นทรัลเฟสติวัล เชียงใหม่", brand: "Studio7", bu: "Apple", province: "เชียงใหม่", region: "ภาคเหนือ", status: "Open", open_date: null, close_date: null, am: "ณัฏฐฤทธิ์", rm: "อรรณพ" },
+  { branch_code: "CRI-002", branch_name: "เซ็นทรัลเชียงราย", brand: "BaNANA", bu: "BaNANA", province: "เชียงราย", region: "ภาคเหนือ", status: "Project", open_date: "2026-12-01", close_date: null, am: "ณัฏฐฤทธิ์", rm: "อรรณพ" },
+  { branch_code: "HKT-004", branch_name: "เซ็นทรัลภูเก็ต", brand: "Studio7", bu: "Apple", province: "ภูเก็ต", region: "ภาคใต้", status: "Open", open_date: null, close_date: null, am: "", rm: "" },
   // Closing on 15/11: the processor cancels its open requisitions and flags the pending Offer for review.
-  { branch_code: "KKN-007", branch_name: "เซ็นทรัลขอนแก่น", brand: "Studio7", bu: "Apple", province: "ขอนแก่น", region: "ภาคอีสาน", status: "Closed", open_date: null, close_date: "2026-11-15" },
+  { branch_code: "KKN-007", branch_name: "เซ็นทรัลขอนแก่น", brand: "Studio7", bu: "Apple", province: "ขอนแก่น", region: "ภาคอีสาน", status: "Closed", open_date: null, close_date: "2026-11-15", am: "ทัศน์พล", rm: "ทวีชัย" },
 ];
 
 const positions: Position[] = [
@@ -61,6 +61,8 @@ const rows: [string, string, string, Status, string][] = [
 ];
 
 const offerDates: Record<number, string> = { 2: "2026-11-14", 9: "2026-11-12", 15: "2026-11-05", 23: "2026-11-16", 27: "2026-11-01" };
+// Planned start dates: some ahead, some already passed with no employee ID yet, one not set.
+const startDates: Record<number, string | null> = { 2: "2026-12-01", 9: "2026-11-16", 15: null, 23: "2026-12-15", 27: "2026-11-15" };
 const offerNames: Record<number, [string, string, string]> = {
   2: ["นาย", "สมชาย", "ใจดี"],
   9: ["นางสาว", "สุดา", "แก้วใส"],
@@ -107,6 +109,7 @@ const offers: Offer[] = Object.entries(offerDates).map(([n, offer_date]) => {
     ta_email: req.ta_email,
     created_by: req.ta_email,
     created_at: `${offer_date}T03:00:00.000Z`,
+    planned_start_date: startDates[Number(n)] ?? null,
   };
 });
 
@@ -168,6 +171,11 @@ export const fixtures: Dataset = {
   ],
   Requisitions: requisitions,
   Offers: offers,
+  // The two demo positions already Hired: one with HR's start date, one still on the date planned at the Offer.
+  NewHires: [
+    { id: "OFF-H008", req_id: "REQ-0008", title: "นาย", first_name: "ธีรพงษ์", last_name: "สุขใจ", phone: "", offer_date: "2026-10-12", sourcing_channel: "JobsDB", tat_at_offer: 22, ta_email: "mind@example.com", created_by: "mind@example.com", created_at: "2026-10-12T03:00:00.000Z", planned_start_date: "2026-11-01", employee_id: "E3101", start_date: "2026-11-01", hired_at: "2026-11-01", tat: 22, tat_result: "Meet" },
+    { id: "OFF-H025", req_id: "REQ-0025", title: "นางสาว", first_name: "กานดา", last_name: "ศรีสวัสดิ์", phone: "", offer_date: "2026-10-28", sourcing_channel: "Referral", tat_at_offer: 27, ta_email: "mind@example.com", created_by: "mind@example.com", created_at: "2026-10-28T03:00:00.000Z", planned_start_date: "2026-11-03", employee_id: "E3102", start_date: null, hired_at: "2026-11-01", tat: 27, tat_result: "Meet" },
+  ] satisfies NewHire[],
   StatusLog: statusLog,
   Approvals: approvals,
   // Sample rows pasted by Ju, waiting for "ประมวลผลข้อมูล" (dates relative to 17–18/11/2026).

@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { ExportLink } from "@/components/export-link";
 import { PageHeader } from "@/components/page-header";
 import Link from "next/link";
 import { getSessionUser } from "@/lib/auth/session-user";
@@ -63,6 +64,8 @@ async function MasterContent({ tab }: { tab: Tab }) {
             { key: "brand", label: "", sub: true },
             { key: "region", label: "ภาค" },
             { key: "province", label: "จังหวัด" },
+            { key: "am", label: "AM" },
+            { key: "rm", label: "RM" },
             { key: "status", label: "สถานะ" },
             { key: "open_date", label: "วันเปิด", format: "date" },
             { key: "close_date", label: "วันปิดร้าน", format: "date" },
@@ -74,6 +77,8 @@ async function MasterContent({ tab }: { tab: Tab }) {
             { name: "brand", label: "แบรนด์ (Group เล็ก)", type: "text" },
             { name: "region", label: "ภาค", type: "text", required: true, hint: regions.length ? `ที่มี: ${regions.join(", ")}` : undefined },
             { name: "province", label: "จังหวัด", type: "text" },
+            { name: "am", label: "AM", type: "text", hint: "Area Manager ตามชีต Zone ในไฟล์ HR" },
+            { name: "rm", label: "RM", type: "text", hint: "Regional Manager ตามชีต Zone ในไฟล์ HR" },
             { name: "status", label: "สถานะ", type: "select", required: true, options: BRANCH_STATUSES.map((s) => ({ value: s, label: s })) },
             { name: "open_date", label: "วันเปิดร้าน", type: "date" },
             { name: "close_date", label: "วันปิดร้าน", type: "date", hint: "ถึงวันนี้ ตำแหน่งที่ยังเปิดจะถูกยกเลิกอัตโนมัติ" },
@@ -155,7 +160,7 @@ async function MasterContent({ tab }: { tab: Tab }) {
 export default async function MasterPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
   return (
     <div className="space-y-4">
-      <PageHeader title={TITLE} description={DESCRIPTION} />
+      <PageHeader title={TITLE} description={DESCRIPTION} actions={<ExportLink href="/api/export/master" />} />
       <Suspense fallback={<p className="py-12 text-center text-muted-foreground">กำลังโหลดข้อมูล…</p>}>
         <MasterTabs searchParams={searchParams} />
       </Suspense>

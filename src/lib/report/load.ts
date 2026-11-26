@@ -1,5 +1,6 @@
 import "server-only";
 import { formatThaiDate, parseUserDate, todayBangkok } from "@/lib/domain/dates";
+import { peopleOptions } from "@/lib/domain/people";
 import { inScope, normalizeEmail } from "@/lib/domain/permissions";
 import {
   byTa,
@@ -48,7 +49,7 @@ export function parseReportParams(sp: Raw, today: LocalDate = todayBangkok()): R
     { from: parseUserDate(one(sp.from) ?? "") ?? undefined, to: parseUserDate(one(sp.to) ?? "") ?? undefined, all: one(sp.all) === "1" },
     monthRange(month),
   );
-  return { tab, range, bu: one(sp.bu), region: one(sp.region), province: one(sp.province), branch: one(sp.branch), position: one(sp.position), ta: one(sp.ta) };
+  return { tab, range, bu: one(sp.bu), region: one(sp.region), province: one(sp.province), branch: one(sp.branch), position: one(sp.position), ta: one(sp.ta), am: one(sp.am), rm: one(sp.rm) };
 }
 
 export interface FilterOptions {
@@ -58,6 +59,8 @@ export interface FilterOptions {
   branches: { value: string; label: string; bu: string; region: string; province: string }[];
   positions: { value: string; label: string }[];
   tas: { value: string; label: string }[];
+  ams: string[];
+  rms: string[];
 }
 
 export interface HistoryItem {
@@ -79,7 +82,7 @@ export interface ReportResult {
     /** Set when the range is one whole month. */
     month: string | null;
   };
-  weekly: { hires: HireRow[]; groups: Record<"taName" | "region" | "positionName" | "channel", GroupStat[]> };
+  weekly: { hires: HireRow[]; groups: Record<"taName" | "am" | "rm" | "region" | "positionName" | "channel", GroupStat[]> };
   turndowns: { rows: TurndownRow[] };
   history: { items: HistoryItem[]; truncated: boolean };
 }
@@ -110,6 +113,7 @@ export async function loadReport(viewer: User, params: ReportParams): Promise<Re
 
   // Filter choices, limited to what the viewer may see.
   const visibleBranches = branches.filter((b) => inScope(viewer, b));
+  const managers = peopleOptions(visibleBranches.map((b) => ({ am: b.am?.trim() ?? "", rm: b.rm?.trim() ?? "", taEmail: "" })));
   const options: FilterOptions = {
     bus: [...new Set(visibleBranches.map(buOf))].sort((a, b) => a.localeCompare(b, "th")),
     regions: [...new Set(visibleBranches.map((b) => b.region || "ไม่ระบุ"))].sort((a, b) => a.localeCompare(b, "th")),
@@ -119,12 +123,15 @@ export async function loadReport(viewer: User, params: ReportParams): Promise<Re
     tas: [...new Set(requisitions.filter((r) => r.ta_email && branchBy.get(r.branch_code) && inScope(viewer, branchBy.get(r.branch_code)!)).map((r) => normalizeEmail(r.ta_email)))]
       .map((e) => ({ value: e, label: nameOf(e) }))
       .sort((a, b) => a.label.localeCompare(b.label, "th")),
+    ams: managers.ams,
+    rms: managers.rms,
   };
 
   // Monthly: closed months come from the snapshot when the filter is one a snapshot can answer.
   const regionNames = new Set(branches.map((b) => b.region));
   const scopeTokens = viewer.scope.split(",").map((t) => t.trim()).filter(Boolean);
-  const snapshotFits = !params.bu && !params.province && !params.branch && !params.position && scopeTokens.every((t) => regionNames.has(t));
+  // Snapshots are per TA × region only, so an AM / RM filter (like BU or branch) is always computed live.
+  const snapshotFits = !params.bu && !params.province && !params.branch && !params.position && !params.am && !params.rm && scopeTokens.every((t) => regionNames.has(t));
   // A snapshot answers only a whole month that is already over.
   const month = wholeMonth(params.range);
   const closed = month !== null && month < monthOf(today);
@@ -168,7 +175,7 @@ export async function loadReport(viewer: User, params: ReportParams): Promise<Re
     },
     weekly: {
       hires,
-      groups: { taName: groupHires(hires, "taName"), region: groupHires(hires, "region"), positionName: groupHires(hires, "positionName"), channel: groupHires(hires, "channel") },
+      groups: { taName: groupHires(hires, "taName"), am: groupHires(hires, "am"), rm: groupHires(hires, "rm"), region: groupHires(hires, "region"), positionName: groupHires(hires, "positionName"), channel: groupHires(hires, "channel") },
     },
     turndowns: { rows: turndownsBetween({ ...data, turndowns }, reqs, first, last) },
     history: { items: history, truncated: ordered.length > HISTORY_LIMIT },

@@ -93,8 +93,8 @@ export default function AppLayout({ children }: LayoutProps<"/">) {
         aria-label="แถบเมนู"
         className="group/rail fixed inset-y-0 left-0 z-30 hidden w-[4.5rem] flex-col overflow-hidden bg-gradient-to-b from-neutral-300/60 via-neutral-200/50 to-neutral-300/60 px-4 py-5 backdrop-blur-2xl backdrop-saturate-200 shadow-[inset_-1px_0_0_rgba(255,255,255,0.8),4px_0_30px_rgba(0,0,0,0.06)] transition-[width,box-shadow] duration-200 ease-out hover:w-64 hover:shadow-[inset_-1px_0_0_rgba(255,255,255,0.8),12px_0_40px_rgba(0,0,0,0.12)] has-[:focus-visible]:w-64 lg:flex"
       >
-        {/* Nav is centred on the screen itself (not in the space left above the account block). */}
-        <div className="absolute inset-x-4 top-1/2 -translate-y-1/2">
+        {/* Nav starts level with the first row under the page title (the Dashboard filters): py-5 + h-9 title + gap-4. */}
+        <div className="absolute inset-x-4 top-[4.5rem]">
           <Suspense fallback={<SidebarNav />}>
             <RailNav />
           </Suspense>

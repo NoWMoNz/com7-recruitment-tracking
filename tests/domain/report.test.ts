@@ -74,6 +74,19 @@ describe("filtered", () => {
     expect(filtered(d, ju, { bu: "ไม่ระบุ BU" }).map((r) => r.id)).toEqual(["C"]);
     expect(filtered(d, ju, {}).map((r) => r.id)).toEqual(["A", "B", "C"]);
   });
+
+  test("narrows to one AM or one RM; a branch without names never matches", () => {
+    const d: ReportData = {
+      requisitions: [req({ id: "A", branch_code: "B1" }), req({ id: "B", branch_code: "B2" }), req({ id: "C", branch_code: "B3" })],
+      log: [],
+      branches: [branch({ branch_code: "B1", am: "ก", rm: "R1" }), branch({ branch_code: "B2", am: "ข", rm: "R1" }), branch({ branch_code: "B3" })],
+      positions,
+      users: [ju],
+      settings: parseSettings([]),
+    };
+    expect(filtered(d, ju, { am: "ก" }).map((r) => r.id)).toEqual(["A"]);
+    expect(filtered(d, ju, { rm: "R1" }).map((r) => r.id)).toEqual(["A", "B"]);
+  });
 });
 
 describe("statusAt", () => {
@@ -96,6 +109,13 @@ describe("statusAt", () => {
 describe("monthlyRows", () => {
   const data = (log: StatusLogEntry[]): ReportData & { offers: never[] } => ({
     requisitions: [], log, branches: [branch({ branch_code: "BKK-012" }), branch({ branch_code: "CNX-001", region: "ภาคเหนือ" })], positions, users: [mind, ploy], settings: parseSettings([]), offers: [],
+  });
+
+  test("an extra grouping key splits rows further and is carried on each row", () => {
+    const reqs = [req({ id: "A", request_date: "2026-11-05" }), req({ id: "B", request_date: "2026-11-06" }), req({ id: "C", request_date: "2026-11-07" })];
+    const rows = monthlyRows(data([]), reqs, "2026-11", "2026-11-20", (r) => (r.id === "C" ? "g2" : "g1"));
+    expect(rows.map((r) => [r.group, r.new]).sort()).toEqual([["g1", 2], ["g2", 1]]);
+    expect(monthlyRows(data([]), reqs, "2026-11", "2026-11-20").map((r) => [r.group, r.new])).toEqual([["", 3]]);
   });
 
   test("carried in / new / closed / cancel / hold / offer pending / remaining for November", () => {
@@ -162,6 +182,16 @@ describe("weekly hires and turndowns", () => {
     expect(rows).toHaveLength(2);
     expect(rows[0]).toMatchObject({ branchName: "ลาดพร้าว", positionName: "Sales", taName: "มายด์" });
     expect(groupHires(rows, "channel")).toEqual([{ key: "JobThai", hired: 2, avgTat: 30, meetPct: 50 }]);
+  });
+
+  test("hires carry their branch's AM / RM ('-' when blank) and group by them", () => {
+    const named = { ...base, branches: [branch({ branch_code: "BKK-012", am: "ก", rm: "R" })] };
+    const newHires = [hire({ id: "H1", req_id: "R1" }), hire({ id: "H2", req_id: "R2" })];
+    const rows = hiresBetween({ ...named, newHires }, reqs, "2026-11-16", "2026-11-22");
+    expect(rows[0]).toMatchObject({ am: "ก", rm: "R" });
+    expect(groupHires(rows, "am").map((g) => [g.key, g.hired])).toEqual([["ก", 2]]);
+    const blank = hiresBetween({ ...base, newHires }, reqs, "2026-11-16", "2026-11-22");
+    expect(blank[0]).toMatchObject({ am: "-", rm: "-" });
   });
 
   test("turndowns in range, newest first, with days after offer", () => {

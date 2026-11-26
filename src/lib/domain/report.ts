@@ -1,4 +1,5 @@
 import { addDays, daysBetween, formatThaiDate } from "./dates";
+import { peopleOfBranch } from "./people";
 import { inScope, normalizeEmail } from "./permissions";
 import { slaFor, type AppSettings } from "./settings";
 import { computeTat, holdDays } from "./tat";
@@ -26,6 +27,9 @@ export interface ReportFilter {
   branch?: string;
   position?: string;
   ta?: string;
+  /** Area / Regional Manager name of the branch. */
+  am?: string;
+  rm?: string;
 }
 
 /** "2026-11" -> first and last day. */
@@ -148,11 +152,15 @@ export function filtered(d: ReportData, viewer: User, f: ReportFilter): Requisit
     if (f.branch && r.branch_code !== f.branch) return false;
     if (f.position && r.position_code !== f.position) return false;
     if (f.ta && normalizeEmail(r.ta_email) !== normalizeEmail(f.ta)) return false;
+    if (f.am && peopleOfBranch(b).am !== f.am) return false;
+    if (f.rm && peopleOfBranch(b).rm !== f.rm) return false;
     return true;
   });
 }
 
 export interface MonthlyRow {
+  /** The extra grouping key passed to monthlyRows; "" when none. */
+  group?: string;
   taEmail: string;
   taName: string;
   region: string;
@@ -186,6 +194,8 @@ export function monthlyRows(
   reqs: Requisition[],
   period: string | { first: LocalDate; last: LocalDate },
   today: LocalDate,
+  /** Optional extra key to split rows by (e.g. BU|AM|RM), carried on each row as `group`. */
+  groupOf?: (r: Requisition) => string,
 ): MonthlyRow[] {
   const { first, last } = typeof period === "string" ? monthRange(period) : period;
   const end = last < today ? last : today;
@@ -194,8 +204,9 @@ export function monthlyRows(
   const { positions, regionOf, nameOf } = lookups(d);
   const rows = new Map<string, MonthlyRow>();
   const row = (r: Requisition) => {
-    const key = `${normalizeEmail(r.ta_email)}|${regionOf(r)}`;
-    if (!rows.has(key)) rows.set(key, zero(normalizeEmail(r.ta_email), nameOf(r.ta_email), regionOf(r)));
+    const group = groupOf?.(r) ?? "";
+    const key = `${group}|${normalizeEmail(r.ta_email)}|${regionOf(r)}`;
+    if (!rows.has(key)) rows.set(key, { ...zero(normalizeEmail(r.ta_email), nameOf(r.ta_email), regionOf(r)), group });
     return rows.get(key)!;
   };
   const open = (s: Status | null) => s !== null && OPEN_STATUSES.includes(s);
@@ -268,6 +279,9 @@ export interface HireRow {
   branchName: string;
   positionName: string;
   taName: string;
+  /** Area / Regional Manager of the branch, "-" when not set (so they group together). */
+  am: string;
+  rm: string;
   channel: string;
   offerDate: LocalDate;
   startDate: LocalDate | null;
@@ -291,6 +305,8 @@ export function hiresBetween(d: ReportData & { newHires: NewHire[] }, reqs: Requ
         branchName: branches.get(r.branch_code)?.branch_name || r.branch_code,
         positionName: positions.get(r.position_code)?.position_name || r.position_code,
         taName: nameOf(r.ta_email),
+        am: peopleOfBranch(branches.get(r.branch_code)).am || "-",
+        rm: peopleOfBranch(branches.get(r.branch_code)).rm || "-",
         channel: h.sourcing_channel || "-",
         offerDate: h.offer_date,
         startDate: h.start_date,
@@ -309,7 +325,7 @@ export interface GroupStat {
 }
 
 /** Hires grouped by one field, with average TAT and Meet %. */
-export function groupHires(rows: HireRow[], by: "taName" | "region" | "positionName" | "channel"): GroupStat[] {
+export function groupHires(rows: HireRow[], by: "taName" | "region" | "positionName" | "channel" | "am" | "rm"): GroupStat[] {
   const g = new Map<string, HireRow[]>();
   for (const r of rows) g.set(r[by], [...(g.get(r[by]) ?? []), r]);
   return [...g.entries()]

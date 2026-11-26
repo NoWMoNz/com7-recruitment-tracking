@@ -2,6 +2,7 @@ import { addDays } from "./dates";
 import type { ManpowerRow } from "./manpower";
 import type { ResignRow } from "./resign";
 import { buOf, type Branch, type LocalDate, type Offer, type Requisition, type Turndown, type User } from "./types";
+import { peopleOfBranch, type People } from "./people";
 import { inScope } from "./permissions";
 
 /** How far ahead the dashboard looks for resignations, and how far back it looks for declined Offers. */
@@ -10,8 +11,8 @@ export const OFFER_LOOKBACK_DAYS = 90;
 
 const UNKNOWN_REGION = "ไม่ระบุ";
 
-/** Where a figure belongs, so the dashboard's region / province / BU filters can narrow it. */
-export interface Place {
+/** Where a figure belongs, so the dashboard's region / province / BU / AM / RM / TA filters can narrow it. */
+export interface Place extends People {
   region: string;
   province: string;
   bu: string;
@@ -29,7 +30,7 @@ export interface UpcomingResign extends Place {
 export function upcomingResignations(rows: ResignRow[]): UpcomingResign[] {
   return rows
     .filter((r) => r.state === "upcoming")
-    .map((r) => ({ region: r.region, province: r.province, bu: r.bu, branchName: r.branchName, positionName: r.positionName, effectiveDate: r.effectiveDate }))
+    .map((r) => ({ region: r.region, province: r.province, bu: r.bu, am: r.am, rm: r.rm, taEmail: r.reqTaEmail, branchName: r.branchName, positionName: r.positionName, effectiveDate: r.effectiveDate }))
     .sort((a, b) => a.effectiveDate.localeCompare(b.effectiveDate));
 }
 
@@ -59,6 +60,9 @@ export function manpowerGaps(rows: ManpowerRow[]): ManpowerGap[] {
       region: r.region,
       province: r.province,
       bu: r.bu,
+      am: r.am,
+      rm: r.rm,
+      taEmail: r.taEmail,
       branchName: r.branchName,
       short: r.short,
       gap: r.positions.reduce((n, p) => n + Math.max(0, p.short - p.open), 0),
@@ -89,9 +93,10 @@ export function offerOutcomes(
   const out: OfferOutcome[] = [];
   const add = (o: Offer, declinedReason: string | null) => {
     if (o.offer_date < since || o.offer_date > today) return;
-    const b = branchByCode.get(reqById.get(o.req_id)?.branch_code ?? "");
+    const r = reqById.get(o.req_id);
+    const b = branchByCode.get(r?.branch_code ?? "");
     if (!b || !inScope(viewer, b)) return;
-    out.push({ region: b.region || UNKNOWN_REGION, province: b.province, bu: buOf(b), declinedReason });
+    out.push({ region: b.region || UNKNOWN_REGION, province: b.province, bu: buOf(b), ...peopleOfBranch(b), taEmail: r?.ta_email ?? "", declinedReason });
   };
   for (const o of d.offers) add(o, null);
   for (const o of d.newHires) add(o, null);

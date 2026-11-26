@@ -45,6 +45,8 @@ export interface Offer {
   ta_email: string;
   created_by: string;
   created_at: string;
+  /** Start date agreed at the Offer (editable later); null = not set yet. HR's actual start date is on NewHire.start_date. */
+  planned_start_date: LocalDate | null;
 }
 
 export type ApprovalType = "Cancel" | "Hold";
@@ -102,6 +104,10 @@ export interface Branch {
   status: "Open" | "Closed" | "Project";
   open_date: LocalDate | null;
   close_date: LocalDate | null;
+  /** Area Manager name from HR's Zone sheet; empty = not set. */
+  am: string;
+  /** Regional Manager name from HR's Zone sheet; empty = not set. */
+  rm: string;
 }
 
 export interface Position {
@@ -138,6 +144,13 @@ export interface QuotaLine {
 }
 
 export type ReviewType = "UnmatchedHire" | "TransferNoReq" | "OfferAtClosedStore" | "ResignWithdrawn";
+
+export const REVIEW_TYPE_LABEL: Record<ReviewType, string> = {
+  UnmatchedHire: "รอจับคู่พนักงานใหม่",
+  TransferNoReq: "โอนเข้าแต่ไม่มีตำแหน่งว่าง",
+  OfferAtClosedStore: "ร้านปิดแต่มีคน Offer",
+  ResignWithdrawn: "ยกเลิกลาออกแต่ตำแหน่งยังเปิดอยู่",
+};
 
 /** Something the processor could not decide on its own; super_admin resolves it in the web. */
 export interface ReviewItem {

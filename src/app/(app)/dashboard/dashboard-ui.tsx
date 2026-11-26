@@ -9,7 +9,7 @@ import { TipRow, TipTitle, useTip } from "./hover-tip";
 
 /** Liquid glass: translucent white, strong blur, bright rim and a soft inner highlight. */
 export const GLASS =
-  "bg-white/45 backdrop-blur-2xl backdrop-saturate-200 ring-1 ring-white/70 shadow-[inset_0_1px_0_rgba(255,255,255,0.9),inset_0_-1px_0_rgba(255,255,255,0.25),0_10px_40px_rgba(10,42,107,0.14)]";
+  "bg-white/45 ring-1 ring-white/70 shadow-[inset_0_1px_0_rgba(255,255,255,0.9),inset_0_-1px_0_rgba(255,255,255,0.25),0_10px_40px_rgba(10,42,107,0.14)]";
 export const CARD = cn("rounded-[1.75rem]", GLASS);
 
 export function IconChip({ children }: { children: ReactNode }) {

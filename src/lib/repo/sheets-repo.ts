@@ -149,8 +149,8 @@ export class SheetsRepo implements Repo {
     await this.writeRows(tab, writes);
   }
 
-  async listNumbered<T extends TabName>(tab: T): Promise<{ rowNumber: number; row: RowOf<T> }[]> {
-    const values = await this.fresh(tab);
+  async listNumbered<T extends TabName>(tab: T, opts?: { cached?: boolean }): Promise<{ rowNumber: number; row: RowOf<T> }[]> {
+    const values = opts?.cached && this.opts.readCached ? await this.opts.readCached(tab) : await this.fresh(tab);
     const out: { rowNumber: number; row: RowOf<T> }[] = [];
     for (let i = 1; i < values.length; i++) {
       const [row] = this.parse(tab, [values[0], values[i]]);

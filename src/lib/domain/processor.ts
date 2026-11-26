@@ -220,6 +220,7 @@ export function planProcessing(input: ProcessorInput): ProcessorPlan {
           ta_email: r.ta_email,
           created_by: actor,
           created_at: at,
+          planned_start_date: null,
         };
         plan.offerAppend.push(offer);
         offers.set(offer.id, offer);
@@ -388,6 +389,6 @@ export function hireFromOffer(p: {
   return {
     reqId: p.req.id,
     reqPatch: { status: "Hired", status_date: p.today, closed_at: p.today },
-    newHire: { ...p.offer, employee_id: p.employee.employee_id.trim(), start_date: p.employee.start_date, hired_at: p.today, tat, tat_result: tat <= sla ? "Meet" : "NotMeet" },
+    newHire: { ...p.offer, employee_id: p.employee.employee_id.trim(), start_date: p.employee.start_date ?? p.offer.planned_start_date, hired_at: p.today, tat, tat_result: tat <= sla ? "Meet" : "NotMeet" },
   };
 }

@@ -4,11 +4,12 @@ import { useId, useMemo, useState } from "react";
 import Link from "next/link";
 import { Play, RotateCcw, Search } from "lucide-react";
 import { BAND_CLASS, BAND_LABEL } from "@/components/aging-badge";
+import { ExportLink } from "@/components/export-link";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Dropdown } from "@/components/ui/dropdown";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { formatThaiDate } from "@/lib/domain/dates";
-import type { HoldRow } from "@/lib/domain/queues";
+import { filterHoldRows, type HoldRow } from "@/lib/domain/queues";
 import { agingBand } from "@/lib/domain/tat";
 import type { LocalDate } from "@/lib/domain/types";
 import { cn } from "@/lib/utils";
@@ -71,15 +72,7 @@ export function HoldView({ rows, bands, ...ctx }: Props) {
   const [region, setRegion] = useState("");
 
   const regions = useMemo(() => [...new Set(rows.map((r) => r.region))], [rows]);
-  const shown = useMemo(
-    () =>
-      rows.filter((r) => {
-        if (region && r.region !== region) return false;
-        const needle = q.trim().toLowerCase();
-        return !needle || `${r.branchName} ${r.branchCode} ${r.positionName} ${r.taName} ${r.reason}`.toLowerCase().includes(needle);
-      }),
-    [rows, region, q],
-  );
+  const shown = useMemo(() => filterHoldRows(rows, { region, q }), [rows, region, q]);
 
   const bandOf = (r: HoldRow) => agingBand(r.daysHeld, bands);
   const longest = rows.reduce((m, r) => Math.max(m, r.daysHeld), 0);
@@ -158,6 +151,7 @@ export function HoldView({ rows, bands, ...ctx }: Props) {
                 ล้างตัวกรอง
               </button>
             )}
+            <ExportLink href={`/api/export/hold?${new URLSearchParams(Object.entries({ region, q: q.trim() }).filter((e) => Boolean(e[1])))}`} className="ml-auto" />
           </div>
 
           {shown.length === 0 ? (

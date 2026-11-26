@@ -1,3 +1,4 @@
+import { peopleOfBranch } from "./people";
 import { holdStart } from "./approval";
 import { canEditRequisition, inScope, normalizeEmail } from "./permissions";
 import { computeTat, holdDays } from "./tat";
@@ -21,6 +22,10 @@ interface Place {
   positionName: string;
   requestDate: LocalDate;
   taName: string;
+  /** Owner of the requisition (email) and the branch's Area / Regional Manager, for the dashboard filters. */
+  taEmail: string;
+  am: string;
+  rm: string;
 }
 
 const UNKNOWN_REGION = "ไม่ระบุ";
@@ -43,6 +48,8 @@ function makeLookup(d: Lookups) {
       positionName: positions.get(r.position_code)?.position_name || r.position_code,
       requestDate: r.request_date,
       taName: nameOf(r.ta_email),
+      taEmail: r.ta_email,
+      ...peopleOfBranch(b),
     };
   };
   const visible = (viewer: User, r: Requisition) => inScope(viewer, branches.get(r.branch_code) ?? { region: UNKNOWN_REGION, branch_code: r.branch_code });
@@ -92,6 +99,14 @@ export interface HoldRow extends Place {
   approvedBy: string;
   approvedAt: LocalDate | null;
   canEdit: boolean;
+}
+
+/** The Hold page's filters; the Excel export applies the same ones. */
+export function filterHoldRows(rows: HoldRow[], f: { region?: string; q?: string }): HoldRow[] {
+  const needle = f.q?.trim().toLowerCase() ?? "";
+  return rows.filter(
+    (r) => (!f.region || r.region === f.region) && (!needle || `${r.branchName} ${r.branchCode} ${r.positionName} ${r.taName} ${r.reason}`.toLowerCase().includes(needle)),
+  );
 }
 
 /** Requisitions on Hold that the viewer can see, longest hold first. */

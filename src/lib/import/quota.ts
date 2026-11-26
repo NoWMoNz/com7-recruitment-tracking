@@ -69,7 +69,12 @@ export function reportDateFromName(name: string): LocalDate | null {
  * every branch and position it mentions, and one Import_Initial row (status Vacancy) per person short.
  * Over-staffed positions and positions without a quota create nothing.
  */
-export function convertQuota(rows: QuotaRow[], codeByName: ReadonlyMap<string, string>, requestDate: LocalDate): QuotaImport {
+export function convertQuota(
+  rows: QuotaRow[],
+  codeByName: ReadonlyMap<string, string>,
+  requestDate: LocalDate,
+  people: ReadonlyMap<string, { am: string; rm: string }> = new Map(),
+): QuotaImport {
   const warnings: string[] = [];
   const branches = new Map<string, Branch>();
   const positions = new Map<string, Position>();
@@ -97,6 +102,8 @@ export function convertQuota(rows: QuotaRow[], codeByName: ReadonlyMap<string, s
         status: closedDate(r.shop) ? "Closed" : "Open",
         open_date: null,
         close_date: closedDate(r.shop),
+        am: people.get(id)?.am ?? "",
+        rm: people.get(id)?.rm ?? "",
       });
       if (closedDate(r.shop)) closedIds.add(id);
     } else if (known.region !== r.region.trim() || known.province !== r.province.trim()) {
@@ -167,4 +174,34 @@ export function codesFromSummary(lines: { code: string; name: string }[]): { cod
     else codes.set(n, c);
   }
   return { codes, warnings };
+}
+
+/** One line of the "Zone" sheet: a shop's Area Manager and Regional Manager. */
+export interface ZoneRow {
+  id: string;
+  am: string;
+  rm: string;
+}
+
+const personName = (v: string) => (v.trim() === "-" ? "" : v.trim());
+
+/**
+ * AM / RM per shop ID. HR's Zone sheet repeats some IDs with one named row and one blank row, so the named
+ * row wins; two different named rows keep the first, with a warning.
+ */
+export function peopleFromZone(rows: ZoneRow[]): { byId: Map<string, { am: string; rm: string }>; warnings: string[] } {
+  const byId = new Map<string, { am: string; rm: string }>();
+  const warnings: string[] = [];
+  for (const r of rows) {
+    const id = r.id.trim();
+    if (!id) continue;
+    const next = { am: personName(r.am), rm: personName(r.rm) };
+    const seen = byId.get(id);
+    const named = (p: { am: string; rm: string } | undefined) => Boolean(p && (p.am || p.rm));
+    if (!named(seen)) byId.set(id, next);
+    else if (named(next) && (seen!.am !== next.am || seen!.rm !== next.rm)) {
+      warnings.push(`สาขา ${id} มี AM/RM หลายชุดในชีต Zone ใช้ชุดแรก (AM ${seen!.am || "-"} · RM ${seen!.rm || "-"})`);
+    }
+  }
+  return { byId, warnings };
 }

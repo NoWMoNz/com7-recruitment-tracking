@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { branchName, closedDate, codesFromSummary, convertQuota, reportDateFromName, type QuotaRow } from "@/lib/import/quota";
+import { branchName, closedDate, codesFromSummary, convertQuota, peopleFromZone, reportDateFromName, type QuotaRow } from "@/lib/import/quota";
 
 const row = (p: Partial<QuotaRow>): QuotaRow => ({
   id: "103",
@@ -147,5 +147,33 @@ describe("convertQuota", () => {
     const out = convertQuota([row({}), row({ region: "ปริมณฑล" })], codes, "2026-11-11");
     expect(out.branches[0].region).toBe("กรุงเทพมหานคร");
     expect(out.warnings).toHaveLength(1);
+  });
+});
+
+describe("AM / RM from the Zone sheet", () => {
+  it("uses the named row of a repeated ID; '-' and blanks are empty", () => {
+    const { byId, warnings } = peopleFromZone([
+      { id: "300", am: "", rm: "" },
+      { id: "300", am: "สุไลมาน", rm: "ชัยรัตน์" },
+      { id: "9", am: "-", rm: " ฐกรกฤตย์ " },
+    ]);
+    expect(byId.get("300")).toEqual({ am: "สุไลมาน", rm: "ชัยรัตน์" });
+    expect(byId.get("9")).toEqual({ am: "", rm: "ฐกรกฤตย์" });
+    expect(warnings).toEqual([]);
+  });
+
+  it("keeps the first of two different named rows and warns", () => {
+    const { byId, warnings } = peopleFromZone([
+      { id: "5", am: "ก", rm: "R" },
+      { id: "5", am: "ข", rm: "R" },
+    ]);
+    expect(byId.get("5")).toEqual({ am: "ก", rm: "R" });
+    expect(warnings).toHaveLength(1);
+  });
+
+  it("puts each branch's AM / RM on it, empty when the Zone sheet has none", () => {
+    const people = new Map([["103", { am: "ก", rm: "R" }]]);
+    expect(convertQuota([row({})], new Map(), "2026-11-11", people).branches[0]).toMatchObject({ am: "ก", rm: "R" });
+    expect(convertQuota([row({})], new Map(), "2026-11-11").branches[0]).toMatchObject({ am: "", rm: "" });
   });
 });

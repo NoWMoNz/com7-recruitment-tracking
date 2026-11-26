@@ -15,13 +15,14 @@ export const BAND_LABEL: Record<AgingBand, string> = {
   darkred: "เกิน 90 วัน",
 };
 
-/** TAT day count; coloured by aging band when the row is still open. Text always carries the number. */
-export function TatBadge({ tat, band }: { tat: number; band: AgingBand | null }) {
+/** TAT day count; coloured by aging band when the row is still open. Text always carries the number. `small` = 12px text. */
+export function TatBadge({ tat, band, small = false }: { tat: number; band: AgingBand | null; small?: boolean }) {
   return (
     <span
       title={band ? `Aging ${BAND_LABEL[band]}` : "TAT ถึงวันที่ Offer"}
       className={cn(
-        "inline-flex min-w-12 justify-center rounded-md px-2 py-0.5 text-sm font-semibold tabular-nums",
+        "inline-flex min-w-12 justify-center rounded-md px-2 py-0.5 font-semibold tabular-nums",
+        small ? "text-xs" : "text-sm",
         band ? BAND_CLASS[band] : "bg-secondary text-secondary-foreground",
       )}
     >
@@ -42,6 +43,11 @@ const RESULT_LABEL: Record<TatResult, string> = {
   InProgress: "ภายใน SLA",
 };
 
-export function TatResultText({ result }: { result: TatResult }) {
-  return <span className={cn("text-sm font-medium", RESULT_CLASS[result])}>{RESULT_LABEL[result]}</span>;
+/**
+ * The tracking page's "Result" column: "-" until an Offer is made, then Meet / Not Meet against the SLA.
+ * (A position still open past its SLA counts as Not Meet elsewhere; here it waits for the Offer.)
+ */
+export function OfferResultText({ result, offered }: { result: TatResult; offered: boolean }) {
+  if (!offered) return <span className="text-xs text-muted-foreground">-</span>;
+  return <span className={cn("text-xs font-medium", RESULT_CLASS[result])}>{RESULT_LABEL[result]}</span>;
 }

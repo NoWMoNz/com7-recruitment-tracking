@@ -2,8 +2,9 @@
 
 import { getSessionUser } from "@/lib/auth/session-user";
 import { planRequest } from "@/lib/domain/approval";
+import { planBranchTaChange } from "@/lib/domain/branch-ta";
 import { todayBangkok } from "@/lib/domain/dates";
-import { planOffer, planTurndown, type OfferInput } from "@/lib/domain/offer";
+import { planOffer, planOfferEdit, planTurndown, type OfferInput } from "@/lib/domain/offer";
 import { parseSettings } from "@/lib/domain/settings";
 import type { ApprovalType } from "@/lib/domain/types";
 import { EVIDENCE_TYPES, MAX_EVIDENCE_BYTES, saveEvidence } from "@/lib/evidence/store";
@@ -43,6 +44,47 @@ export async function submitOffer(reqId: string, expectedVersion: number, input:
     await repo.update("Requisitions", req.id, plan.value.reqPatch, expectedVersion);
     await repo.append("Offers", [plan.value.offer]);
     await repo.append("StatusLog", [plan.value.logEntry]);
+  } catch (e) {
+    return writeError(e);
+  }
+  return { ok: true };
+}
+
+/**
+ * Corrects a saved Offer: every field within 2 hours of saving it (always for super_admin), afterwards only the
+ * start date. A changed offer date moves the requisition's status date (version-checked, written first) and its log row.
+ */
+export async function submitOfferEdit(reqId: string, expectedVersion: number, input: OfferInput): Promise<ActionResult> {
+  const viewer = await getSessionUser();
+  const repo = getRepo();
+  const [req, settingRows, channelRows, log] = await Promise.all([
+    repo.getFresh("Requisitions", reqId),
+    repo.list("Settings"),
+    repo.list("SourcingChannels"),
+    repo.list("StatusLog"),
+  ]);
+  if (!req) return fail(GONE);
+  if (req.version !== expectedVersion) return fail(CONFLICT);
+  const offer = req.offer_id ? await repo.getFresh("Offers", req.offer_id) : null;
+
+  const plan = planOfferEdit({
+    req,
+    offer,
+    input,
+    viewer,
+    today: todayBangkok(),
+    settings: parseSettings(settingRows),
+    channels: channelRows.filter((c) => c.active).map((c) => c.channel),
+    log,
+    now: new Date(),
+  });
+  if (!plan.ok) return plan;
+
+  const { offerPatch, reqPatch, logPatch } = plan.value;
+  try {
+    if (reqPatch) await repo.update("Requisitions", req.id, reqPatch, expectedVersion);
+    await repo.update("Offers", offer!.id, offerPatch);
+    if (logPatch) await repo.update("StatusLog", logPatch.id, logPatch.patch);
   } catch (e) {
     return writeError(e);
   }
@@ -134,6 +176,44 @@ export async function submitApprovalRequest(form: FormData): Promise<ActionResul
     await repo.update("Requisitions", req.id, plan.value.reqPatch, expectedVersion);
     await repo.append("Approvals", [plan.value.approval]);
     await repo.append("StatusLog", [plan.value.logEntry]);
+  } catch (e) {
+    return writeError(e);
+  }
+  return { ok: true };
+}
+
+/**
+ * Hands a branch to another TA: its not-closed positions move first (version-checked in one write, so a
+ * position edited meanwhile stops the whole change), then the branch's assignment rules and the log.
+ */
+export async function changeBranchTa(branchCode: string, taEmail: string): Promise<ActionResult> {
+  const viewer = await getSessionUser();
+  const repo = getRepo();
+  const [branches, users, requisitions, assignments] = await Promise.all([
+    repo.list("Branches"),
+    repo.list("Users"),
+    repo.list("Requisitions"),
+    repo.listNumbered("RecruiterAssignments"),
+  ]);
+  const plan = planBranchTaChange({
+    branch: branches.find((b) => b.branch_code === branchCode),
+    taEmail,
+    viewer,
+    users,
+    assignments,
+    requisitions,
+    ids: () => newId("LOG"),
+    now: new Date(),
+    today: todayBangkok(),
+  });
+  if (!plan.ok) return plan;
+
+  const { reqPatches, removeRows, assignment, log } = plan.value;
+  try {
+    if (reqPatches.length) await repo.updateMany("Requisitions", reqPatches);
+    if (removeRows.length) await repo.removeAt("RecruiterAssignments", removeRows);
+    await repo.append("RecruiterAssignments", [assignment]);
+    if (log.length) await repo.append("StatusLog", log);
   } catch (e) {
     return writeError(e);
   }

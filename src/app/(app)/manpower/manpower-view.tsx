@@ -2,8 +2,10 @@
 
 import { Fragment, useId, useMemo, useState } from "react";
 import { ChevronRight, Download, RotateCcw, Search } from "lucide-react";
+import { hasPeople, PeopleFilters } from "@/components/people-filters";
 import { Dropdown } from "@/components/ui/dropdown";
 import { formatThaiDate } from "@/lib/domain/dates";
+import { peopleOptions, type PeopleFilter } from "@/lib/domain/people";
 import {
   filterManpowerRows,
   MANPOWER_STATUS_LABEL,
@@ -40,6 +42,33 @@ function Chip({ className, children, title }: { className: string; children: Rea
   );
 }
 
+/** Quota, Actual, short and over cells. Actual counts Offers already made; the note says where the number comes from. */
+function NumberCells({ q, hrActual, offers, actual, short, over, compact }: { q: number; hrActual: number; offers: number; actual: number; short: number; over: number; compact?: boolean }) {
+  const pad = compact ? "px-4 py-2.5" : "px-4 py-3";
+  return (
+    <>
+      <td className={cn(pad, "text-right tabular-nums")}>{q}</td>
+      <td className={cn(pad, "text-right tabular-nums")}>
+        {actual}
+        {offers > 0 && <span className="block text-[11px] leading-tight whitespace-nowrap text-muted-foreground">HR {hrActual} + Offer {offers}</span>}
+      </td>
+      <td className={cn(pad, "text-right tabular-nums", short > 0 && "font-medium text-[#b91c1c]")}>{short}</td>
+      <td className={cn(pad, "text-right tabular-nums")}>{over}</td>
+    </>
+  );
+}
+
+function OpenCell({ open, match, compact }: { open: number; match: OpenMatch; compact?: boolean }) {
+  return (
+    <td className={cn("px-4", compact ? "py-2.5" : "py-3")}>
+      <span className="mr-2 inline-block min-w-4 text-right tabular-nums">{open}</span>
+      <Chip className={MATCH_CHIP[match]} title={MATCH_HINT[match]}>
+        {OPEN_MATCH_LABEL[match]}
+      </Chip>
+    </td>
+  );
+}
+
 function Card({ label, value, tone }: { label: string; value: number; tone?: string }) {
   return (
     <div className={cn(CARD, "px-5 py-4")}>
@@ -55,16 +84,18 @@ export function ManpowerView({ rows, closedBranches, reportDate, isAdmin }: { ro
   const [region, setRegion] = useState("");
   const [status, setStatus] = useState<ManpowerStatus | "">("");
   const [q, setQ] = useState("");
+  const [people, setPeople] = useState<PeopleFilter>({});
   const [openRows, setOpenRows] = useState<ReadonlySet<string>>(new Set());
 
   const uniq = (pick: (r: ManpowerRow) => string) => [...new Set(rows.map(pick))].sort((a, b) => a.localeCompare(b, "th"));
   const bus = useMemo(() => uniq((r) => r.bu), [rows]); // eslint-disable-line react-hooks/exhaustive-deps
   const regions = useMemo(() => uniq((r) => r.region), [rows]); // eslint-disable-line react-hooks/exhaustive-deps
+  const peopleChoices = useMemo(() => peopleOptions(rows), [rows]);
 
-  const filter = { bu: bu || undefined, region: region || undefined, status: status || undefined, q: q.trim() || undefined };
-  const shown = useMemo(() => filterManpowerRows(rows, filter), [rows, bu, region, status, q]); // eslint-disable-line react-hooks/exhaustive-deps
+  const filter = { bu: bu || undefined, region: region || undefined, status: status || undefined, q: q.trim() || undefined, ...people };
+  const shown = useMemo(() => filterManpowerRows(rows, filter), [rows, bu, region, status, q, people]); // eslint-disable-line react-hooks/exhaustive-deps
   const total = useMemo(() => summarizeManpower(shown), [shown]);
-  const hasFilter = bu !== "" || region !== "" || status !== "" || q !== "";
+  const hasFilter = bu !== "" || region !== "" || status !== "" || q !== "" || hasPeople(people);
   const exportHref = `/api/export/manpower?${new URLSearchParams(Object.entries(filter).filter((e): e is [string, string] => Boolean(e[1])))}`;
 
   const toggle = (code: string) =>
@@ -79,7 +110,7 @@ export function ManpowerView({ rows, closedBranches, reportDate, isAdmin }: { ro
       <header>
         <h1 className="font-heading text-3xl font-light">กำลังพล</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          โควต้าเทียบกับคนจริงของแต่ละสาขา จากรายงานของ HR{reportDate ? ` ณ ${formatThaiDate(reportDate)}` : ""} และเทียบกับตำแหน่งที่เปิดสรรหาอยู่ในระบบ
+          โควต้าเทียบกับคนจริงของแต่ละสาขา จากรายงานของ HR{reportDate ? ` ณ ${formatThaiDate(reportDate)}` : ""} Actual รวมคนที่ Offer แล้วแต่ยังไม่เริ่มงาน และเทียบกับตำแหน่งที่ยังเปิดสรรหาอยู่ในระบบ
         </p>
         {closedBranches > 0 && <p className="mt-0.5 text-xs text-muted-foreground">ไม่รวมร้านที่ปิดแล้ว {closedBranches} สาขา</p>}
       </header>
@@ -132,6 +163,7 @@ export function ManpowerView({ rows, closedBranches, reportDate, isAdmin }: { ro
               options={(Object.keys(MANPOWER_STATUS_LABEL) as ManpowerStatus[]).map((s) => ({ value: s, label: MANPOWER_STATUS_LABEL[s] }))}
               className="w-36"
             />
+            <PeopleFilters idPrefix={`${uid}-people`} value={people} onChange={setPeople} options={peopleChoices} />
             {hasFilter && (
               <button
                 type="button"
@@ -140,6 +172,7 @@ export function ManpowerView({ rows, closedBranches, reportDate, isAdmin }: { ro
                   setRegion("");
                   setStatus("");
                   setQ("");
+                  setPeople({});
                 }}
                 className="inline-flex h-10 items-center gap-1.5 rounded-full px-3 text-sm text-muted-foreground hover:bg-muted"
               >
@@ -158,11 +191,20 @@ export function ManpowerView({ rows, closedBranches, reportDate, isAdmin }: { ro
           ) : (
             <section className={cn(CARD, "overflow-hidden")} aria-label="กำลังพลรายสาขา">
               <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm">
+                <table className="w-full table-fixed text-left text-sm">
+                  <colgroup>
+                    <col className="w-12" />
+                    <col />
+                    {[0, 1, 2, 3].map((i) => (
+                      <col key={i} className="w-28" />
+                    ))}
+                    <col className="w-28" />
+                    <col className="w-48" />
+                  </colgroup>
                   <thead className="text-xs text-muted-foreground">
                     <tr className="border-b border-black/[0.06] bg-black/[0.025]">
-                      <th className="w-10 px-3 py-2.5" aria-label="ขยายรายตำแหน่ง" />
-                      {["สาขา", "Quota", "Actual", "ขาด", "เกิน", "สถานะ", "เปิดสรรหาในระบบ"].map((h, i) => (
+                      <th className="px-3 py-2.5" aria-label="ขยายรายตำแหน่ง" />
+                      {["สาขา / ตำแหน่ง", "Quota", "Actual", "ขาด", "เกิน", "สถานะ", "เปิดสรรหาในระบบ"].map((h, i) => (
                         <th key={h} className={cn("px-4 py-2.5 font-medium whitespace-nowrap", i >= 1 && i <= 4 && "text-right")}>
                           {h}
                         </th>
@@ -174,13 +216,16 @@ export function ManpowerView({ rows, closedBranches, reportDate, isAdmin }: { ro
                       const expanded = openRows.has(r.branchCode);
                       return (
                         <Fragment key={r.branchCode}>
-                          <tr className="border-b border-black/[0.05]">
+                          <tr className="cursor-pointer border-b border-black/[0.05] transition-colors hover:bg-black/[0.02]" onClick={() => toggle(r.branchCode)}>
                             <td className="px-3 py-3">
                               <button
                                 type="button"
                                 aria-expanded={expanded}
                                 aria-label={`${expanded ? "ซ่อน" : "ดู"}รายตำแหน่งของ ${r.branchName}`}
-                                onClick={() => toggle(r.branchCode)}
+                                onClick={(e) => {
+                                  e.stopPropagation(); // the row's own click would toggle a second time
+                                  toggle(r.branchCode);
+                                }}
                                 className="grid size-7 place-items-center rounded-full outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/50"
                               >
                                 <ChevronRight className={cn("size-4 transition-transform duration-200 motion-reduce:transition-none", expanded && "rotate-90")} aria-hidden />
@@ -191,56 +236,30 @@ export function ManpowerView({ rows, closedBranches, reportDate, isAdmin }: { ro
                               <span className="block text-xs text-muted-foreground">
                                 {r.bu} · {r.region}
                               </span>
+                              <span className="block text-xs text-muted-foreground">
+                                AM {r.am || "-"} · RM {r.rm || "-"} · TA {r.taName || "-"}
+                              </span>
                             </td>
-                            <td className="px-4 py-3 text-right tabular-nums">{r.quota}</td>
-                            <td className="px-4 py-3 text-right tabular-nums">{r.actual}</td>
-                            <td className={cn("px-4 py-3 text-right tabular-nums", r.short > 0 && "font-medium text-[#b91c1c]")}>{r.short}</td>
-                            <td className="px-4 py-3 text-right tabular-nums">{r.over}</td>
+                            <NumberCells q={r.quota} hrActual={r.hrActual} offers={r.offers} actual={r.actual} short={r.short} over={r.over} />
                             <td className="px-4 py-3">
                               <Chip className={STATUS_CHIP[r.status]}>{MANPOWER_STATUS_LABEL[r.status]}</Chip>
                             </td>
-                            <td className="px-4 py-3">
-                              <span className="mr-2 tabular-nums">{r.open}</span>
-                              <Chip className={MATCH_CHIP[r.match]} title={MATCH_HINT[r.match]}>
-                                {OPEN_MATCH_LABEL[r.match]}
-                              </Chip>
-                            </td>
+                            <OpenCell open={r.open} match={r.match} />
                           </tr>
-                          {expanded && (
-                            <tr className="border-b border-black/[0.05] bg-black/[0.02]">
-                              <td />
-                              <td colSpan={7} className="px-4 py-3">
-                                <table className="w-full text-sm" aria-label={`รายตำแหน่งของ ${r.branchName}`}>
-                                  <thead className="text-xs text-muted-foreground">
-                                    <tr>
-                                      {["ตำแหน่ง", "Quota", "Actual", "ขาด", "เกิน", "เปิดสรรหาในระบบ"].map((h, i) => (
-                                        <th key={h} className={cn("py-1.5 pr-4 font-medium whitespace-nowrap", i >= 1 && i <= 4 && "text-right")}>
-                                          {h}
-                                        </th>
-                                      ))}
-                                    </tr>
-                                  </thead>
-                                  <tbody>
-                                    {r.positions.map((p) => (
-                                      <tr key={p.positionCode} className="border-t border-black/[0.05]">
-                                        <td className="py-2 pr-4">{p.positionName}</td>
-                                        <td className="py-2 pr-4 text-right tabular-nums">{p.quota}</td>
-                                        <td className="py-2 pr-4 text-right tabular-nums">{p.actual}</td>
-                                        <td className={cn("py-2 pr-4 text-right tabular-nums", p.short > 0 && "font-medium text-[#b91c1c]")}>{p.short}</td>
-                                        <td className="py-2 pr-4 text-right tabular-nums">{p.over}</td>
-                                        <td className="py-2 pr-4">
-                                          <span className="mr-2 tabular-nums">{p.open}</span>
-                                          <Chip className={MATCH_CHIP[p.match]} title={MATCH_HINT[p.match]}>
-                                            {OPEN_MATCH_LABEL[p.match]}
-                                          </Chip>
-                                        </td>
-                                      </tr>
-                                    ))}
-                                  </tbody>
-                                </table>
-                              </td>
-                            </tr>
-                          )}
+                          {expanded &&
+                            r.positions.map((p) => (
+                              <tr key={p.positionCode} className="border-b border-black/[0.05] bg-black/[0.02] text-foreground/85">
+                                <td />
+                                <td className="py-2.5 pr-4 pl-8">
+                                  <span className="block border-l-2 border-black/10 pl-3">{p.positionName}</span>
+                                </td>
+                                <NumberCells q={p.quota} hrActual={p.hrActual} offers={p.offers} actual={p.actual} short={p.short} over={p.over} compact />
+                                <td className="px-4 py-2.5">
+                                  <Chip className={STATUS_CHIP[p.status]}>{MANPOWER_STATUS_LABEL[p.status]}</Chip>
+                                </td>
+                                <OpenCell open={p.open} match={p.match} compact />
+                              </tr>
+                            ))}
                         </Fragment>
                       );
                     })}

@@ -4,7 +4,7 @@
  *   pnpm quota:import "Quota Branch 11 Nov 2026.xlsx" [--date=2026-11-11] [--out=ไฟล์ผลลัพธ์.xlsx]
  *
  * ได้ไฟล์ .xlsx 4 แท็บ หัวคอลัมน์ตรงกับ Sheet ของระบบ:
- *   Branches        ทุกสาขาในไฟล์ (ภาค/จังหวัด/BU ตามไฟล์, ร้านที่ชื่อลงท้าย "(ปิด…)" เป็น Closed พร้อมวันปิด)
+ *   Branches        ทุกสาขาในไฟล์ (ภาค/จังหวัด/BU ตามไฟล์, AM/RM จากชีต Zone, ร้านที่ชื่อลงท้าย "(ปิด…)" เป็น Closed พร้อมวันปิด)
  *   Positions       ทุกตำแหน่ง พร้อมรหัสจากชีต Quota01_Summary
  *   Quota           โควต้าและคนปัจจุบันของทุกสาขา × ตำแหน่ง (วางทับแท็บ Quota ทั้งแท็บทุกครั้งที่ import)
  *   Import_Initial  1 แถวต่อ 1 อัตราที่ขาด (สถานะ Vacancy, วันที่แจ้งสรรหา = วันที่ของรายงาน) ไม่รวมร้านที่ปิดแล้ว
@@ -12,7 +12,7 @@
  */
 import { basename, dirname, extname, join } from "node:path";
 import ExcelJS from "exceljs";
-import { codesFromSummary, convertQuota, reportDateFromName, type QuotaRow } from "../src/lib/import/quota";
+import { codesFromSummary, convertQuota, peopleFromZone, reportDateFromName, type QuotaRow, type ZoneRow } from "../src/lib/import/quota";
 import { TABS, type TabName } from "../src/lib/sheets/schema";
 
 type Cell = ExcelJS.CellValue;
@@ -67,6 +67,22 @@ function readAll(ws: ExcelJS.Worksheet): QuotaRow[] {
       actual: num(row.getCell(C.actual).value),
       vacant: num(row.getCell(C.vacant).value),
     });
+  }
+  return rows;
+}
+
+/** ID / AM / RM columns of the "Zone" sheet, found by their header text. */
+function readZone(ws: ExcelJS.Worksheet): ZoneRow[] {
+  const header = new Map<string, number>();
+  ws.getRow(1).eachCell((c, col) => header.set(str(c.value).trim(), col));
+  const C = { id: header.get("ID"), am: header.get("AM"), rm: header.get("RM") };
+  if (!C.id || !C.am || !C.rm) throw new Error('ชีต Zone ไม่มีคอลัมน์ "ID" / "AM" / "RM"');
+  const rows: ZoneRow[] = [];
+  for (let r = 2; r <= ws.rowCount; r++) {
+    const row = ws.getRow(r);
+    const id = plain(row.getCell(C.id).value);
+    if (id === "") continue;
+    rows.push({ id: typeof id === "number" ? String(Math.trunc(id)) : String(id).trim(), am: str(row.getCell(C.am).value), rm: str(row.getCell(C.rm).value) });
   }
   return rows;
 }
@@ -136,7 +152,11 @@ async function main() {
   const summary = readSummary(sheet(book, "Quota01_Summary"));
   const rows = readAll(sheet(book, "All"));
   log(`อ่านโควต้าได้ ${rows.length} บรรทัด, รหัสตำแหน่ง ${summary.codes.size} ตำแหน่ง`);
-  const result = convertQuota(rows, summary.codes, date);
+  const zoneSheet = book.getWorksheet("Zone");
+  if (!zoneSheet) console.warn("! ไม่พบชีต Zone — AM/RM จะว่าง");
+  const zone = peopleFromZone(zoneSheet ? readZone(zoneSheet) : []);
+  const result = convertQuota(rows, summary.codes, date, zone.byId);
+  const named = result.branches.filter((b) => b.am || b.rm).length;
 
   const out = new ExcelJS.Workbook();
   addTab(out, "Branches", result.branches);
@@ -150,10 +170,11 @@ async function main() {
   const s = result.summary;
   console.log(`วันที่รายงาน ${date}`);
   console.log(`Branches        ${s.branches} สาขา (ร้านที่ปิดแล้ว ${s.closedBranches})`);
+  console.log(`AM/RM           ${named} สาขามีชื่อ จาก ${s.branches}`);
   console.log(`Positions       ${s.positions} ตำแหน่ง`);
   console.log(`Quota           ${result.quota.length} บรรทัด (สาขา × ตำแหน่ง)
 Import_Initial  ${s.openings} อัตราที่ขาด (จาก ${s.shortRows} คู่สาขา-ตำแหน่ง) · ตำแหน่งที่เกินโควต้า ${s.over} อัตรา ไม่ถูกนำเข้า · ร้านที่ปิดแล้ว ${s.closedOpenings} อัตรา ไม่ถูกนำเข้า`);
-  for (const w of [...summary.warnings, ...result.warnings]) console.warn(`! ${w}`);
+  for (const w of [...summary.warnings, ...zone.warnings, ...result.warnings]) console.warn(`! ${w}`);
   console.log(`บันทึกแล้ว: ${target}`);
 }
 

@@ -1,5 +1,7 @@
 import { normalizeProvince } from "@/lib/geo/province";
 import { daysBetween } from "./dates";
+import { matchesPeople, peopleOfBranch, type People, type PeopleFilter } from "./people";
+import { normalizeEmail } from "./permissions";
 import { monthlyRows, previousMonth, monthOf, type ReportData } from "./report";
 import type { AgingBand } from "./tat";
 import type { TrackingRow } from "./tracking";
@@ -23,11 +25,13 @@ export interface RowStats {
 
 export function statsOf(rows: TrackingRow[]): RowStats {
   const live = rows.filter((r) => !r.upcoming);
+  // An Offer already fills the seat, so it is no longer something still being recruited for.
+  const recruiting = live.filter((r) => r.status !== "Offer");
   const vacant = live.filter((r) => r.agingBand !== null);
   const bands: Record<AgingBand, number> = { green: 0, orange: 0, red: 0, darkred: 0 };
   for (const r of vacant) bands[r.agingBand!]++;
   return {
-    open: live.length,
+    open: recruiting.length,
     offers: live.filter((r) => r.status === "Offer").length,
     notMeet: live.filter((r) => r.tatResult === "NotMeet").length,
     avgAging: vacant.length ? Math.round(vacant.reduce((s, r) => s + r.tat, 0) / vacant.length) : null,
@@ -52,7 +56,7 @@ export function provinceStats(rows: TrackingRow[]): Map<string, RowStats> {
 }
 
 export interface DashboardSummary extends RowStats {
-  /** Vacancy still counted as open: on-process rows whose effective date has arrived. */
+  /** Still being recruited for: on-process rows whose effective date has arrived, except those that already have an Offer. */
   open: number;
   offers: number;
   /** Share of judged rows (Meet / (Meet + NotMeet)), or null when nothing has been judged yet. */
@@ -125,7 +129,8 @@ export function groupOpen(rows: TrackingRow[], by: "positionName" | "branchName"
     .slice(0, limit);
 }
 
-export interface TrendRow {
+/** One month's figures for one region × BU × AM × RM × TA. */
+export interface TrendRow extends People {
   region: string;
   bu: string;
   new: number;
@@ -144,9 +149,9 @@ export interface TrendMonth {
   month: string;
   rows: TrendRow[];
 }
-export type TrendPoint = Omit<TrendRow, "region" | "bu"> & { month: string };
+export type TrendPoint = Omit<TrendRow, "region" | "bu" | keyof People> & { month: string };
 
-/** Last `count` months (oldest first, ending with the month of `today`), one row per region and business unit. */
+/** Last `count` months (oldest first, ending with the month of `today`), one row per region, BU, AM, RM and TA. */
 export function buildTrend(
   d: ReportData & { offers: (Offer | Turndown | NewHire)[] },
   reqs: Requisition[],
@@ -155,40 +160,43 @@ export function buildTrend(
 ): TrendMonth[] {
   const months: string[] = [monthOf(today)];
   while (months.length < count) months.unshift(previousMonth(months[0]));
-  // The monthly cut groups by TA and region only, so it is run once per business unit to keep the BU on each row.
-  const branchBu = new Map(d.branches.map((b) => [b.branch_code, buOf(b)]));
-  const byBu = new Map<string, Requisition[]>();
-  for (const r of reqs) {
-    const bu = branchBu.get(r.branch_code) ?? UNKNOWN_BU;
-    byBu.set(bu, [...(byBu.get(bu) ?? []), r]);
-  }
+  // One monthly cut per month, split by BU × AM × RM on top of its own TA × region, so every row keeps those.
+  const branchBy = new Map(d.branches.map((b) => [b.branch_code, b]));
+  const groups = new Map<string, { bu: string; am: string; rm: string }>();
+  const groupOf = (r: Requisition) => {
+    const b = branchBy.get(r.branch_code);
+    const g = { bu: b ? buOf(b) : UNKNOWN_BU, ...peopleOfBranch(b) };
+    const key = `${g.bu}\u0000${g.am}\u0000${g.rm}`;
+    if (!groups.has(key)) groups.set(key, g);
+    return key;
+  };
   return months.map((month) => {
     const rows = new Map<string, TrendRow>();
-    for (const [bu, list] of byBu) {
-      for (const m of monthlyRows(d, list, month, today)) {
-        const key = `${m.region}|${bu}`;
-        const t = rows.get(key) ?? { region: m.region, bu, new: 0, offers: 0, closed: 0, cancel: 0, hold: 0, open: 0, tatDays: 0, slaDays: 0 };
-        t.new += m.new;
-        t.offers += m.tatTotal;
-        t.closed += m.closed;
-        t.cancel += m.cancel;
-        t.hold += m.hold;
-        t.open += m.remaining;
-        t.tatDays += m.tatDays;
-        t.slaDays += m.slaDays;
-        rows.set(key, t);
-      }
+    for (const m of monthlyRows(d, reqs, month, today, groupOf)) {
+      const { bu, am, rm } = groups.get(m.group ?? "")!;
+      const taEmail = normalizeEmail(m.taEmail);
+      const key = `${m.region}\u0000${m.group}\u0000${taEmail}`;
+      const t = rows.get(key) ?? { region: m.region, bu, am, rm, taEmail, new: 0, offers: 0, closed: 0, cancel: 0, hold: 0, open: 0, tatDays: 0, slaDays: 0 };
+      t.new += m.new;
+      t.offers += m.tatTotal;
+      t.closed += m.closed;
+      t.cancel += m.cancel;
+      t.hold += m.hold;
+      t.open += m.remaining;
+      t.tatDays += m.tatDays;
+      t.slaDays += m.slaDays;
+      rows.set(key, t);
     }
     return { month, rows: [...rows.values()] };
   });
 }
 
-/** One point per month, summed over every region (or just `region`) and every business unit (or just `bu`). */
-export function sumTrend(months: TrendMonth[], region: string, bu = ""): TrendPoint[] {
+/** One point per month, summed over the rows that pass the filter (an empty value = any). */
+export function sumTrend(months: TrendMonth[], f: { region?: string; bu?: string } & PeopleFilter): TrendPoint[] {
   return months.map(({ month, rows }) => {
     const p: TrendPoint = { month, new: 0, offers: 0, closed: 0, cancel: 0, hold: 0, open: 0, tatDays: 0, slaDays: 0 };
     for (const r of rows) {
-      if ((region && r.region !== region) || (bu && r.bu !== bu)) continue;
+      if ((f.region && r.region !== f.region) || (f.bu && r.bu !== f.bu) || !matchesPeople(r, f)) continue;
       p.new += r.new;
       p.offers += r.offers;
       p.closed += r.closed;

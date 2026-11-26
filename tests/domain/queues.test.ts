@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { buildApprovalRows, buildHoldRows } from "@/lib/domain/queues";
+import { buildApprovalRows, buildHoldRows, filterHoldRows } from "@/lib/domain/queues";
 import type { Approval, StatusLogEntry } from "@/lib/domain/types";
 import { branch, positions, req, user } from "./helpers";
 
@@ -56,5 +56,13 @@ describe("buildHoldRows", () => {
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({ reqId: "R1", holdSince: "2026-11-01", tatAtHold: 30, daysHeld: 16, reason: "ปรับปรุงร้าน", canEdit: true, taName: "มายด์", approvedAt: "2026-11-01", approvedBy: "จู" });
     expect(buildHoldRows(data, user({ email: "x@example.com" }), "2026-11-17")[0].canEdit).toBe(false);
+  });
+
+  test("filterHoldRows: region and a search over shop, position, TA and reason (the page's filters, also used by the export)", () => {
+    const rows = buildHoldRows(data, mind, "2026-11-17");
+    expect(filterHoldRows(rows, { q: "ปรับปรุง" })).toHaveLength(1);
+    expect(filterHoldRows(rows, { q: "ไม่มีคำนี้" })).toHaveLength(0);
+    expect(filterHoldRows(rows, { region: "ภาคเหนือ" })).toHaveLength(0);
+    expect(filterHoldRows(rows, {})).toHaveLength(1);
   });
 });

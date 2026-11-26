@@ -3,6 +3,7 @@ import { getSessionUser } from "@/lib/auth/session-user";
 import { todayBangkok } from "@/lib/domain/dates";
 import { assignableUsers } from "@/lib/domain/master";
 import { earliestDate } from "@/lib/domain/offer";
+import { branchHeads } from "@/lib/domain/people";
 import { normalizeEmail } from "@/lib/domain/permissions";
 import { parseSettings } from "@/lib/domain/settings";
 import { buildTrackingRows } from "@/lib/domain/tracking";
@@ -14,7 +15,7 @@ const BAND_VALUES = ["green", "orange", "red", "darkred"] as const;
 async function TrackingContent({ searchParams }: { searchParams: Promise<{ mine?: string; band?: string; q?: string; bu?: string }> }) {
   const [user, params] = await Promise.all([getSessionUser(), searchParams]);
   const repo = getRepo();
-  const [requisitions, offers, log, branches, positions, users, settingRows, channelRows] = await Promise.all([
+  const [requisitions, offers, log, branches, positions, users, settingRows, channelRows, assignments] = await Promise.all([
     repo.list("Requisitions"),
     repo.list("Offers"),
     repo.list("StatusLog"),
@@ -23,6 +24,7 @@ async function TrackingContent({ searchParams }: { searchParams: Promise<{ mine?
     repo.list("Users"),
     repo.list("Settings"),
     repo.list("SourcingChannels"),
+    repo.list("RecruiterAssignments"),
   ]);
 
   const settings = parseSettings(settingRows);
@@ -36,12 +38,16 @@ async function TrackingContent({ searchParams }: { searchParams: Promise<{ mine?
     { mineOnly },
   );
 
+  // Branch header: AM / RM, the branch's TA, and what handing it to another TA would move.
+  const heads = branchHeads([...new Set(rows.map((r) => r.branchCode))], branches, assignments, requisitions, users);
+
   const editContext = {
     today,
     minDate: earliestDate(today, settings.backdateDays, user.role),
     backdateDays: settings.backdateDays,
     channels: channelRows.filter((c) => c.active).map((c) => c.channel),
     isAdmin: user.role === "super_admin",
+    canChangeBranchTa: user.role === "ta" || user.role === "super_admin",
     assignable: assignableUsers(users).map((x) => ({ value: normalizeEmail(x.email), label: x.name })),
   };
 
@@ -55,6 +61,7 @@ async function TrackingContent({ searchParams }: { searchParams: Promise<{ mine?
     <TrackingView
       key={`${initialBand ?? ""}|${initialQ}|${initialBu}|${mineOnly}`}
       rows={rows}
+      branches={heads}
       today={today}
       mineOnly={mineOnly}
       canFilterMine={canFilterMine}

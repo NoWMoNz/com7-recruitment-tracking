@@ -52,7 +52,7 @@ const REQUISITION_COLS = cols(
 );
 const OFFER_COLS = cols(
   "id", "req_id", "title", "first_name", "last_name", "phone", "offer_date:d", "sourcing_channel",
-  "tat_at_offer:n", "ta_email", "created_by", "created_at",
+  "tat_at_offer:n", "ta_email", "created_by", "created_at", "planned_start_date:d",
 );
 const STATUS_LOG_COLS = cols(
   "id", "req_id", "from_status", "to_status", "effective_date:d", "actor", "at", "note", "ref_id",
@@ -60,7 +60,7 @@ const STATUS_LOG_COLS = cols(
 
 const defs: [TabName, boolean, ColSpec[]][] = [
   ["Branches", false, cols(
-    "branch_code", "branch_name", "brand", "bu", "province", "region", "status", "open_date:d", "close_date:d",
+    "branch_code", "branch_name", "brand", "bu", "province", "region", "status", "open_date:d", "close_date:d", "am", "rm",
   )],
   ["Positions", false, cols("position_code", "position_name", "position_group", "sla_days:n")],
   ["SourcingChannels", false, cols("channel", "active:b")],

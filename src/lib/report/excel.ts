@@ -5,6 +5,12 @@ import { formatThaiDate } from "@/lib/domain/dates";
 import { periodText, wholeMonth, type GroupStat } from "@/lib/domain/report";
 import { MANPOWER_STATUS_LABEL, OPEN_MATCH_LABEL, type ManpowerRow } from "@/lib/domain/manpower";
 import { RESIGN_STATE_LABEL, type ResignRow } from "@/lib/domain/resign";
+import type { HiredRow } from "@/lib/domain/hired";
+import type { MasterEntity } from "@/lib/domain/master";
+import type { ApprovalRow, HoldRow } from "@/lib/domain/queues";
+import type { TrackingRow } from "@/lib/domain/tracking";
+import { REVIEW_TYPE_LABEL, type ReviewType } from "@/lib/domain/types";
+import { TABS } from "@/lib/sheets/schema";
 import type { ReportResult } from "./load";
 
 type Cell = string | number | null;
@@ -54,12 +60,14 @@ function tablesFor(r: ReportResult): Table[] {
           title,
           columns: [
             { header: "วันที่ Hired", width: 12 }, { header: "รหัสพนักงาน", width: 13 }, { header: "ชื่อ", width: 26 }, { header: "ภาค", width: 14 }, { header: "สาขา", width: 26 },
-            { header: "ตำแหน่ง", width: 22 }, { header: "TA", width: 16 }, { header: "Sourcing Channel", width: 16 }, { header: "วันที่ Offer", width: 12 },
-            { header: "วันเริ่มงาน", width: 12 }, { header: "TAT", width: 7 }, { header: "ผล TAT", width: 10 },
+            { header: "ตำแหน่ง", width: 22 }, { header: "TA", width: 16 }, { header: "AM", width: 16 }, { header: "RM", width: 16 }, { header: "Sourcing Channel", width: 16 }, { header: "วันที่ Offer", width: 12 },
+            { header: "วันเริ่มงาน", width: 12 }, { header: "TAT", width: 7 }, { header: "Result", width: 10 },
           ],
-          rows: w.hires.map((h) => [formatThaiDate(h.hiredAt), h.employeeId, h.name, h.region, h.branchName, h.positionName, h.taName, h.channel, formatThaiDate(h.offerDate), formatThaiDate(h.startDate), h.tat, h.meet ? "Meet" : "Not Meet"]),
+          rows: w.hires.map((h) => [formatThaiDate(h.hiredAt), h.employeeId, h.name, h.region, h.branchName, h.positionName, h.taName, h.am, h.rm, h.channel, formatThaiDate(h.offerDate), formatThaiDate(h.startDate), h.tat, h.meet ? "Meet" : "Not Meet"]),
         },
         groupTable("ตาม TA", `${title} แยกตาม TA`, "TA", w.groups.taName),
+        groupTable("ตาม AM", `${title} แยกตาม AM`, "AM", w.groups.am),
+        groupTable("ตาม RM", `${title} แยกตาม RM`, "RM", w.groups.rm),
         groupTable("ตามภาค", `${title} แยกตามภาค`, "ภาค", w.groups.region),
         groupTable("ตามตำแหน่ง", `${title} แยกตามตำแหน่ง`, "ตำแหน่ง", w.groups.positionName),
         groupTable("ตาม Channel", `${title} แยกตาม Sourcing Channel`, "Sourcing Channel", w.groups.channel),
@@ -122,39 +130,166 @@ export async function buildResignationsWorkbook(rows: ResignRow[]): Promise<{ bu
     columns: [
       { header: "รหัสพนักงาน", width: 14 }, { header: "ชื่อ", width: 26 }, { header: "BU", width: 14 }, { header: "ภาค", width: 20 }, { header: "สาขา", width: 28 },
       { header: "ตำแหน่ง", width: 24 }, { header: "วันที่มีผล", width: 12 }, { header: "สถานะ", width: 14 }, { header: "สถานะตำแหน่ง", width: 16 },
-      { header: "ยกเลิกเมื่อ", width: 12 }, { header: "ยกเลิกโดย", width: 18 }, { header: "เหตุผล", width: 40 },
+      { header: "ยกเลิกเมื่อ", width: 12 }, { header: "ยกเลิกโดย", width: 18 }, { header: "เหตุผล", width: 40 }, { header: "AM", width: 16 }, { header: "RM", width: 16 },
     ],
     rows: rows.map((r) => [
       r.employeeId, r.name, r.bu, r.region, r.branchName, r.positionName, formatThaiDate(r.effectiveDate), RESIGN_STATE_LABEL[r.state],
-      r.reqStatus ? STATUS_LABEL[r.reqStatus] : "-", r.cancelledDay, r.cancelledBy, r.cancelNote,
+      r.reqStatus ? STATUS_LABEL[r.reqStatus] : "-", r.cancelledDay, r.cancelledBy, r.cancelNote, r.am || "-", r.rm || "-",
     ]),
   });
   return { buffer: (await wb.xlsx.writeBuffer()) as ArrayBuffer, filename: "recruitment-resignations.xlsx" };
 }
 
 /** HR's quota against actual people, per branch and per position, with the open requisitions in the system beside it. */
+type Built = Promise<{ buffer: ArrayBuffer; filename: string }>;
+
+async function oneSheet(t: Table, filename: string): Built {
+  const wb = newWorkbook();
+  writeTable(wb, t);
+  return { buffer: (await wb.xlsx.writeBuffer()) as ArrayBuffer, filename };
+}
+
+/** The tracking page as on screen (its filters applied by the caller). */
+export function buildTrackingWorkbook(rows: TrackingRow[]): Built {
+  return oneSheet(
+    {
+      sheet: "ติดตามการสรรหา",
+      title: `ติดตามการสรรหา ${rows.length} ตำแหน่ง`,
+      columns: [
+        { header: "รหัสสาขา", width: 10 }, { header: "สาขา", width: 30 }, { header: "BU", width: 12 }, { header: "ภาค", width: 18 }, { header: "จังหวัด", width: 16 },
+        { header: "AM", width: 16 }, { header: "RM", width: 16 }, { header: "TA", width: 16 }, { header: "ตำแหน่ง", width: 24 }, { header: "วันที่แจ้งสรรหา", width: 14 },
+        { header: "TAT (วัน)", width: 10 }, { header: "Result", width: 10 }, { header: "สถานะ", width: 16 }, { header: "ผู้ได้รับ Offer", width: 24 },
+        { header: "วันที่ Offer", width: 12 }, { header: "วันเริ่มงาน", width: 12 }, { header: "Sourcing Channel", width: 16 },
+      ],
+      rows: rows.map((r) => [
+        r.branchCode, r.branchName, r.bu, r.region, r.province || "-", r.am || "-", r.rm || "-", r.taName || "-", r.positionName, formatThaiDate(r.requestDate),
+        r.tat, r.offerDate ? (r.tatResult === "Meet" ? "Meet" : "Not Meet") : "-", STATUS_LABEL[r.status], r.offerName ?? "-", formatThaiDate(r.offerDate),
+        formatThaiDate(r.offer?.startDate ?? null), r.offerChannel || "-",
+      ]),
+    },
+    "recruitment-tracking.xlsx",
+  );
+}
+
+export function buildHoldWorkbook(rows: HoldRow[]): Built {
+  return oneSheet(
+    {
+      sheet: "Hold",
+      title: `ตำแหน่งที่พักไว้ (Hold) ${rows.length} ตำแหน่ง`,
+      columns: [
+        { header: "รหัสสาขา", width: 10 }, { header: "สาขา", width: 30 }, { header: "BU", width: 12 }, { header: "ภาค", width: 18 }, { header: "AM", width: 16 },
+        { header: "RM", width: 16 }, { header: "TA", width: 16 }, { header: "ตำแหน่ง", width: 24 }, { header: "พักตั้งแต่", width: 12 }, { header: "พักมา (วัน)", width: 11 },
+        { header: "TAT ก่อนพัก (วัน)", width: 15 }, { header: "เหตุผล", width: 36 }, { header: "อนุมัติโดย", width: 16 },
+      ],
+      rows: rows.map((r) => [
+        r.branchCode, r.branchName, r.bu, r.region, r.am || "-", r.rm || "-", r.taName || "-", r.positionName, formatThaiDate(r.holdSince), r.daysHeld, r.tatAtHold,
+        r.reason || "-", r.approvedBy || "-",
+      ]),
+    },
+    "recruitment-hold.xlsx",
+  );
+}
+
+export function buildApprovalsWorkbook(rows: ApprovalRow[]): Built {
+  return oneSheet(
+    {
+      sheet: "รออนุมัติ",
+      title: `คำขอ Cancel / Hold ที่รออนุมัติ ${rows.length} รายการ`,
+      columns: [
+        { header: "คำขอ", width: 10 }, { header: "รหัสสาขา", width: 10 }, { header: "สาขา", width: 30 }, { header: "ภาค", width: 18 }, { header: "ตำแหน่ง", width: 24 },
+        { header: "TA", width: 16 }, { header: "เหตุผล", width: 36 }, { header: "วันที่มีผล", width: 12 }, { header: "ขอโดย", width: 16 }, { header: "ขอเมื่อ", width: 12 },
+      ],
+      rows: rows.map((r) => [
+        r.type === "Cancel" ? "ยกเลิก" : "พัก", r.branchCode, r.branchName, r.region, r.positionName, r.taName || "-", r.reason, formatThaiDate(r.effectiveDate),
+        r.requestedBy, formatThaiDate(r.requestedAt.slice(0, 10)),
+      ]),
+    },
+    "recruitment-approvals.xlsx",
+  );
+}
+
+export function buildReviewWorkbook(rows: { id: string; type: ReviewType; detail: string }[]): Built {
+  return oneSheet(
+    {
+      sheet: "รอตรวจ",
+      title: `รายการที่ระบบตัดสินเองไม่ได้ ${rows.length} รายการ`,
+      columns: [{ header: "เรื่อง", width: 30 }, { header: "รายละเอียด", width: 90 }],
+      rows: rows.map((r) => [REVIEW_TYPE_LABEL[r.type] ?? r.type, r.detail]),
+    },
+    "recruitment-review-queue.xlsx",
+  );
+}
+
+/** Master data, one sheet per tab with the Sheet's own column names, so it can be read side by side with the Sheet. */
+export async function buildMasterWorkbook(tabs: { tab: MasterEntity; rows: object[] }[]): Built {
+  const wb = newWorkbook();
+  for (const { tab, rows } of tabs) {
+    const columns = TABS[tab].columns;
+    writeTable(wb, {
+      sheet: tab,
+      title: `${tab} ${rows.length} แถว`,
+      columns: columns.map((c) => ({ header: c.key, width: Math.max(12, c.key.length + 4) })),
+      rows: rows.map((obj) => {
+        const rec = obj as Record<string, unknown>;
+        return columns.map((c) => {
+          const v = rec[c.key];
+          if (v === null || v === undefined || v === "") return "";
+          if (c.type === "date") return formatThaiDate(String(v));
+          if (c.type === "bool") return v ? "TRUE" : "FALSE";
+          return typeof v === "number" ? v : String(v);
+        });
+      }),
+    });
+  }
+  return { buffer: (await wb.xlsx.writeBuffer()) as ArrayBuffer, filename: "recruitment-master-data.xlsx" };
+}
+
+export async function buildHiredWorkbook(rows: HiredRow[]): Promise<{ buffer: ArrayBuffer; filename: string }> {
+  const wb = newWorkbook();
+  writeTable(wb, {
+    sheet: "Hired",
+    title: `Hired ${rows.length} คน`,
+    columns: [
+      { header: "รหัสพนักงาน", width: 14 }, { header: "ชื่อ", width: 26 }, { header: "วันเริ่มงาน", width: 12 }, { header: "ตำแหน่ง", width: 24 },
+      { header: "รหัสสาขา", width: 10 }, { header: "สาขา", width: 28 }, { header: "BU", width: 14 }, { header: "ภาค", width: 20 },
+      { header: "AM", width: 16 }, { header: "RM", width: 16 }, { header: "TA", width: 18 }, { header: "วันที่ Offer", width: 12 },
+      { header: "TAT (วัน)", width: 10 }, { header: "Result", width: 10 }, { header: "Sourcing Channel", width: 18 },
+    ],
+    rows: rows.map((r) => [
+      r.employeeId, r.name, formatThaiDate(r.startDate), r.positionName, r.branchCode, r.branchName, r.bu, r.region,
+      r.am || "-", r.rm || "-", r.taName || "-", formatThaiDate(r.offerDate), r.tat, r.tatResult === "Meet" ? "Meet" : "Not Meet", r.channel || "-",
+    ]),
+  });
+  return { buffer: (await wb.xlsx.writeBuffer()) as ArrayBuffer, filename: "recruitment-hired.xlsx" };
+}
+
 export async function buildManpowerWorkbook(rows: ManpowerRow[]): Promise<{ buffer: ArrayBuffer; filename: string }> {
   const wb = newWorkbook();
   const place = (r: ManpowerRow): Cell[] => [r.bu, r.region, r.branchName];
+  // Appended at the end so the columns people already know keep their place.
+  const people = (r: ManpowerRow): Cell[] => [r.am || "-", r.rm || "-", r.taName || "-"];
+  const peopleCols = [{ header: "AM", width: 16 }, { header: "RM", width: 16 }, { header: "TA", width: 16 }];
   writeTable(wb, {
     sheet: "รายสาขา",
     title: `กำลังพลรายสาขา ${rows.length} สาขา`,
     columns: [
       { header: "BU", width: 14 }, { header: "ภาค", width: 20 }, { header: "สาขา", width: 30 },
-      { header: "Quota", width: 9 }, { header: "Actual", width: 9 }, { header: "ขาด", width: 8 }, { header: "เกิน", width: 8 }, { header: "สถานะ", width: 10 },
-      { header: "เปิดสรรหาในระบบ", width: 17 }, { header: "เทียบกับระบบ", width: 14 },
+      { header: "Quota", width: 9 }, { header: "Actual (HR)", width: 12 }, { header: "Offer แล้ว", width: 11 }, { header: "Actual รวม Offer", width: 16 },
+      { header: "ขาด", width: 8 }, { header: "เกิน", width: 8 }, { header: "สถานะ", width: 10 },
+      { header: "เปิดสรรหาในระบบ", width: 17 }, { header: "เทียบกับระบบ", width: 14 }, ...peopleCols,
     ],
-    rows: rows.map((r) => [...place(r), r.quota, r.actual, r.short, r.over, MANPOWER_STATUS_LABEL[r.status], r.open, OPEN_MATCH_LABEL[r.match]]),
+    rows: rows.map((r) => [...place(r), r.quota, r.hrActual, r.offers, r.actual, r.short, r.over, MANPOWER_STATUS_LABEL[r.status], r.open, OPEN_MATCH_LABEL[r.match], ...people(r)]),
   });
   writeTable(wb, {
     sheet: "รายตำแหน่ง",
     title: "กำลังพลรายตำแหน่ง",
     columns: [
       { header: "BU", width: 14 }, { header: "ภาค", width: 20 }, { header: "สาขา", width: 30 },
-      { header: "ตำแหน่ง", width: 28 }, { header: "Quota", width: 9 }, { header: "Actual", width: 9 }, { header: "ขาด", width: 8 }, { header: "เกิน", width: 8 },
-      { header: "เปิดสรรหาในระบบ", width: 17 }, { header: "เทียบกับระบบ", width: 14 },
+      { header: "ตำแหน่ง", width: 28 }, { header: "Quota", width: 9 }, { header: "Actual (HR)", width: 12 }, { header: "Offer แล้ว", width: 11 }, { header: "Actual รวม Offer", width: 16 },
+      { header: "ขาด", width: 8 }, { header: "เกิน", width: 8 },
+      { header: "เปิดสรรหาในระบบ", width: 17 }, { header: "เทียบกับระบบ", width: 14 }, ...peopleCols,
     ],
-    rows: rows.flatMap((r) => r.positions.map((p) => [...place(r), p.positionName, p.quota, p.actual, p.short, p.over, p.open, OPEN_MATCH_LABEL[p.match]])),
+    rows: rows.flatMap((r) => r.positions.map((p) => [...place(r), p.positionName, p.quota, p.hrActual, p.offers, p.actual, p.short, p.over, p.open, OPEN_MATCH_LABEL[p.match], ...people(r)])),
   });
   return { buffer: (await wb.xlsx.writeBuffer()) as ArrayBuffer, filename: "recruitment-manpower.xlsx" };
 }

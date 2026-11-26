@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { ExportLink } from "@/components/export-link";
 import { PageHeader } from "@/components/page-header";
 import { getSessionUser } from "@/lib/auth/session-user";
 import { buildApprovalRows } from "@/lib/domain/queues";
@@ -29,7 +30,7 @@ async function ApprovalsContent() {
 export default function ApprovalsPage() {
   return (
     <div className="space-y-4">
-      <PageHeader title={TITLE} description={DESCRIPTION} />
+      <PageHeader title={TITLE} description={DESCRIPTION} actions={<ExportLink href="/api/export/approvals" />} />
       <Suspense fallback={<p className="py-12 text-center text-muted-foreground">กำลังโหลดข้อมูล…</p>}>
         <ApprovalsContent />
       </Suspense>

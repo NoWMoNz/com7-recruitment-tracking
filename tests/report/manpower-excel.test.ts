@@ -31,12 +31,12 @@ describe("buildManpowerWorkbook", () => {
 
     const branches = wb.getWorksheet("รายสาขา")!;
     expect(cells(branches, 2)).toEqual(["BU", "ภาค", "สาขา", "Quota", "Actual (HR)", "Offer แล้ว", "Actual รวม Offer", "ขาด", "เกิน", "สถานะ", "เปิดสรรหาในระบบ", "เทียบกับระบบ", "AM", "RM", "TA"]);
-    expect(cells(branches, 3)).toEqual(["Apple", "ภาคกลาง", "สาขา A", 4, 0, 1, 1, 3, 0, "ขาด", 1, "เปิดไม่ครบ", "-", "-", "-"]);
+    expect(cells(branches, 3)).toEqual(["Apple", "ภาคกลาง", "ID A_สาขา_A", 4, 0, 1, 1, 3, 0, "ขาด", 1, "เปิดไม่ครบ", "-", "-", "-"]);
     expect(cells(branches, 4).slice(9, 12)).toEqual(["เกิน", 0, "ตรงกัน"]);
 
     const positions = wb.getWorksheet("รายตำแหน่ง")!;
     expect(cells(positions, 2)).toEqual(["BU", "ภาค", "สาขา", "ตำแหน่ง", "Quota", "Actual (HR)", "Offer แล้ว", "Actual รวม Offer", "ขาด", "เกิน", "เปิดสรรหาในระบบ", "เทียบกับระบบ", "AM", "RM", "TA"]);
-    expect(cells(positions, 3).slice(2, 12)).toEqual(["สาขา A", "Sales", 3, 0, 0, 0, 3, 0, 1, "เปิดไม่ครบ"]);
+    expect(cells(positions, 3).slice(2, 12)).toEqual(["ID A_สาขา_A", "Sales", 3, 0, 0, 0, 3, 0, 1, "เปิดไม่ครบ"]);
     expect(cells(positions, 4).slice(3, 12)).toEqual(["Store Manager", 1, 1, 0, 1, 0, 0, 0, "ตรงกัน"]);
   });
 

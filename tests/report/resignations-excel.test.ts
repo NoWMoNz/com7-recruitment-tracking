@@ -22,9 +22,15 @@ describe("buildResignationsWorkbook", () => {
     expect(wb.worksheets.map((w) => w.name)).toEqual(["รายชื่อลาออก"]);
     const ws = wb.worksheets[0];
     const values = (n: number) => (ws.getRow(n).values as unknown[]).slice(1);
-    expect(values(2)).toEqual(["รหัสพนักงาน", "ชื่อ", "BU", "ภาค", "สาขา", "ตำแหน่ง", "วันที่มีผล", "สถานะ", "สถานะตำแหน่ง", "ยกเลิกเมื่อ", "ยกเลิกโดย", "เหตุผล", "AM", "RM"]);
-    expect(values(3).slice(0, 8)).toEqual(["E100", "นายก ข", "Apple", "ภาคกลาง", "ลาดพร้าว", "Sales", "20/11/2026", "ลาออกแล้ว"]);
-    expect(values(4)).toEqual(["E200", "นางสาวค ง", "Apple", "ภาคกลาง", "ลาดพร้าว", "Sales", "20/11/2026", "ยกเลิกลาออก", "ยกเลิก", "18/11/2026", "มายด์", "อยู่ต่อ", "-", "-"]);
+    expect(values(2)).toEqual(["รหัสพนักงาน", "ชื่อพนักงาน", "BU", "ภาค", "สาขา", "ตำแหน่ง", "วันที่มีผล", "สถานะ", "สถานะตำแหน่ง", "ยกเลิกเมื่อ", "ยกเลิกโดย", "เหตุผล", "AM", "RM"]);
+    expect(values(3).slice(0, 8)).toEqual(["E100", "นายก ข", "Apple", "ภาคกลาง", "ID BKK-012_ลาดพร้าว", "Sales", "20/11/2026", "ลาออกแล้ว"]);
+    expect(values(4)).toEqual(["E200", "นางสาวค ง", "Apple", "ภาคกลาง", "ID BKK-012_ลาดพร้าว", "Sales", "20/11/2026", "ยกเลิกลาออก", "ยกเลิก", "18/11/2026", "มายด์", "อยู่ต่อ", "-", "-"]);
+  });
+
+  test("the position's status is the export label: Offer, not Offer แล้ว", async () => {
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load((await buildResignationsWorkbook([row({ reqStatus: "Offer" })])).buffer);
+    expect(wb.worksheets[0].getRow(3).getCell(9).value).toBe("Offer");
   });
 
   test("the withdrawal date column uses cancelledDay, so a hand-typed value cannot crash the export", async () => {

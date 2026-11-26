@@ -20,8 +20,8 @@ describe("buildHiredWorkbook", () => {
     expect(wb.worksheets.map((w) => w.name)).toEqual(["Hired"]);
     const ws = wb.worksheets[0];
     const values = (n: number) => (ws.getRow(n).values as unknown[]).slice(1);
-    expect(values(2)).toEqual(["รหัสพนักงาน", "ชื่อ", "วันเริ่มงาน", "ตำแหน่ง", "รหัสสาขา", "สาขา", "BU", "ภาค", "AM", "RM", "TA", "วันที่ Offer", "TAT (วัน)", "Result", "Sourcing Channel"]);
-    expect(values(3)).toEqual(["E1", "นายสมชาย ใจดี", "20/11/2026", "Sales", "BKK-012", "ลาดพร้าว", "Apple", "ภาคกลาง", "ก", "R", "มายด์", "20/10/2026", 18, "Meet", "JobThai"]);
+    expect(values(2)).toEqual(["รหัสพนักงาน", "ชื่อพนักงาน", "วันเริ่มงาน", "ตำแหน่ง", "รหัสสาขา", "สาขา", "BU", "ภาค", "AM", "RM", "TA", "วันที่ Offer", "TAT (วัน)", "Result", "Sourcing Channel"]);
+    expect(values(3)).toEqual(["E1", "นายสมชาย ใจดี", "20/11/2026", "Sales", "BKK-012", "ID BKK-012_ลาดพร้าว", "Apple", "ภาคกลาง", "ก", "R", "มายด์", "20/10/2026", 18, "Meet", "JobThai"]);
     expect(values(4).slice(0, 3)).toEqual(["E2", "นายสมชาย ใจดี", "-"]);
     expect(values(4).slice(8, 10)).toEqual(["-", "-"]);
     expect(values(4)[13]).toBe("Not Meet");

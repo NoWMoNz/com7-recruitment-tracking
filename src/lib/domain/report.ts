@@ -276,6 +276,7 @@ export interface HireRow {
   employeeId: string;
   name: string;
   region: string;
+  branchCode: string;
   branchName: string;
   positionName: string;
   taName: string;
@@ -302,6 +303,7 @@ export function hiresBetween(d: ReportData & { newHires: NewHire[] }, reqs: Requ
         employeeId: h.employee_id,
         name: `${h.title}${h.first_name} ${h.last_name}`,
         region: regionOf(r),
+        branchCode: r.branch_code,
         branchName: branches.get(r.branch_code)?.branch_name || r.branch_code,
         positionName: positions.get(r.position_code)?.position_name || r.position_code,
         taName: nameOf(r.ta_email),
@@ -341,6 +343,7 @@ export function groupHires(rows: HireRow[], by: "taName" | "region" | "positionN
 export interface TurndownRow {
   date: LocalDate;
   name: string;
+  branchCode: string;
   branchName: string;
   positionName: string;
   taName: string;
@@ -360,6 +363,7 @@ export function turndownsBetween(d: ReportData & { turndowns: Turndown[] }, reqs
       return {
         date: t.turndown_date,
         name: `${t.title}${t.first_name} ${t.last_name}`,
+        branchCode: r.branch_code,
         branchName: branches.get(r.branch_code)?.branch_name || r.branch_code,
         positionName: positions.get(r.position_code)?.position_name || r.position_code,
         taName: nameOf(r.ta_email),

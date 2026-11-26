@@ -4,7 +4,7 @@ import type { ApprovalRow, HoldRow } from "@/lib/domain/queues";
 import type { TrackingRow } from "@/lib/domain/tracking";
 
 vi.mock("server-only", () => ({}));
-const { buildTrackingWorkbook, buildHoldWorkbook, buildApprovalsWorkbook, buildReviewWorkbook, buildMasterWorkbook } = await import("@/lib/report/excel");
+const { buildTrackingWorkbook, buildHoldWorkbook, buildApprovalsWorkbook, buildReviewWorkbook, buildMasterWorkbook, exportBranchName } = await import("@/lib/report/excel");
 
 async function sheets(buffer: ArrayBuffer) {
   const wb = new ExcelJS.Workbook();
@@ -32,9 +32,9 @@ describe("page exports", () => {
     expect(filename).toBe("recruitment-tracking.xlsx");
     const [s] = await sheets(buffer);
     expect(s.name).toBe("ติดตามการสรรหา");
-    expect(s.row(2)).toEqual(["รหัสสาขา", "สาขา", "BU", "ภาค", "จังหวัด", "AM", "RM", "TA", "ตำแหน่ง", "วันที่แจ้งสรรหา", "TAT (วัน)", "Result", "สถานะ", "ผู้ได้รับ Offer", "วันที่ Offer", "วันเริ่มงาน", "Sourcing Channel"]);
-    expect(s.row(3)).toEqual(["BKK-012", "ลาดพร้าว", "Apple", "ภาคกลาง", "กรุงเทพฯ", "ก", "R", "มายด์", "Sales", "02/10/2026", 46, "-", "ว่าง", "-", "-", "-", "-"]);
-    expect(s.row(4).slice(10)).toEqual([18, "Meet", "Offer แล้ว", "นายสมชาย ใจดี", "20/10/2026", "01/11/2026", "JobThai"]);
+    expect(s.row(2)).toEqual(["รหัสสาขา", "สาขา", "BU", "ภาค", "จังหวัด", "AM", "RM", "TA", "ตำแหน่ง", "วันที่แจ้งสรรหา", "TAT (วัน)", "Result", "สถานะ", "ชื่อพนักงาน", "วันที่ Offer", "วันเริ่มงาน", "Sourcing Channel"]);
+    expect(s.row(3)).toEqual(["BKK-012", "ID BKK-012_ลาดพร้าว", "Apple", "ภาคกลาง", "กรุงเทพฯ", "ก", "R", "มายด์", "Sales", "02/10/2026", 46, "-", "ว่าง", "-", "-", "-", "-"]);
+    expect(s.row(4).slice(10)).toEqual([18, "Meet", "Offer", "นายสมชาย ใจดี", "20/10/2026", "01/11/2026", "JobThai"]);
   });
 
   test("hold: shop, AM / RM / TA, since when, days held, TAT before the hold and the reason", async () => {
@@ -42,14 +42,22 @@ describe("page exports", () => {
     const [s] = await sheets((await buildHoldWorkbook([hold])).buffer);
     expect(s.name).toBe("Hold");
     expect(s.row(2)).toEqual(["รหัสสาขา", "สาขา", "BU", "ภาค", "AM", "RM", "TA", "ตำแหน่ง", "พักตั้งแต่", "พักมา (วัน)", "TAT ก่อนพัก (วัน)", "เหตุผล", "อนุมัติโดย"]);
-    expect(s.row(3)).toEqual(["BKK-012", "ลาดพร้าว", "Apple", "ภาคกลาง", "ก", "R", "มายด์", "Sales", "01/11/2026", 16, 30, "ปรับปรุงร้าน", "จู"]);
+    expect(s.row(3)).toEqual(["BKK-012", "ID BKK-012_ลาดพร้าว", "Apple", "ภาคกลาง", "ก", "R", "มายด์", "Sales", "01/11/2026", 16, 30, "ปรับปรุงร้าน", "จู"]);
   });
 
   test("approvals: what is asked, for which position, by whom and since when", async () => {
     const a: ApprovalRow = { ...place, id: "A1", type: "Cancel", reason: "ปิดตำแหน่ง", effectiveDate: "2026-11-15", evidenceRef: "local:x", requestedBy: "มายด์", requestedAt: "2026-11-16T03:00:00.000Z" };
     const [s] = await sheets((await buildApprovalsWorkbook([a])).buffer);
     expect(s.row(2)).toEqual(["คำขอ", "รหัสสาขา", "สาขา", "ภาค", "ตำแหน่ง", "TA", "เหตุผล", "วันที่มีผล", "ขอโดย", "ขอเมื่อ"]);
-    expect(s.row(3)).toEqual(["ยกเลิก", "BKK-012", "ลาดพร้าว", "ภาคกลาง", "Sales", "มายด์", "ปิดตำแหน่ง", "15/11/2026", "มายด์", "16/11/2026"]);
+    expect(s.row(3)).toEqual(["ยกเลิก", "BKK-012", "ID BKK-012_ลาดพร้าว", "ภาคกลาง", "Sales", "มายด์", "ปิดตำแหน่ง", "15/11/2026", "มายด์", "16/11/2026"]);
+  });
+
+  test("the shop is written in full as HR names it: ID, code, then the name with underscores", () => {
+    expect(exportBranchName("1060", "BB Emquartier Sukhumvit")).toBe("ID 1060_BB_Emquartier_Sukhumvit");
+    expect(exportBranchName("103", "  Studio 7  Paradise Park ")).toBe("ID 103_Studio_7_Paradise_Park");
+    // A requisition whose shop is no longer in Branches shows its code as the name.
+    expect(exportBranchName("9999", "9999")).toBe("ID 9999");
+    expect(exportBranchName("9999", "")).toBe("ID 9999");
   });
 
   test("review queue: the type in words and the detail", async () => {

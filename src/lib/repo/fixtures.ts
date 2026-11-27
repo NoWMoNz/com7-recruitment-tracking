@@ -83,6 +83,7 @@ const requisitions: Requisition[] = rows.map(([branch_code, position_code, reque
     source: n % 3 === 0 ? "Resign" : branch_code === "CRI-002" ? "NewStore" : "Additional",
     source_ref: "",
     ta_email: ta ? `${ta}@example.com` : "",
+    ta_name: "",
     status,
     status_date: null,
     offer_id: offerDates[n] ? `OFF-${pad(n)}` : "",

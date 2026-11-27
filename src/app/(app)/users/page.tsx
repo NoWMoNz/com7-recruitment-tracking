@@ -10,7 +10,7 @@ import { MasterTable, type Row } from "../master/master-table";
 
 const TITLE = "กำหนดสิทธิ์ผู้ใช้";
 const DESCRIPTION = "ใครเข้าระบบได้ (ต้องมีชื่อในรายการนี้และเปิดใช้งาน) สิทธิ์ และขอบเขตที่มองเห็น การเปลี่ยนมีผลทันทีโดยไม่ต้องออกจากระบบ";
-const ROLE_LABEL: Record<(typeof ROLES)[number], string> = { super_admin: "ผู้ดูแลระบบ (super_admin)", ta: "TA", viewer: "ผู้ดูรายงาน (viewer)" };
+const ROLE_LABEL: Record<(typeof ROLES)[number], string> = { super_admin: "ผู้ดูแลระบบ (super_admin)", admin: "แอดมิน (admin)", ta: "TA", viewer: "ผู้ดูรายงาน (viewer)" };
 
 async function UsersContent() {
   const viewer = await getSessionUser();

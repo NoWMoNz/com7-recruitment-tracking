@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { buildApprovalRows, buildHoldRows, filterHoldRows } from "@/lib/domain/queues";
+import { buildApprovalRows, buildApprovalStatusRows, buildHoldRows, filterHoldRows } from "@/lib/domain/queues";
 import type { Approval, StatusLogEntry } from "@/lib/domain/types";
 import { branch, positions, req, user } from "./helpers";
 
@@ -30,7 +30,7 @@ describe("buildApprovalRows", () => {
   test("pending only, oldest request first, joined with branch/position/requester", () => {
     const rows = buildApprovalRows(data, ju);
     expect(rows.map((r) => r.id)).toEqual(["A2", "A1"]);
-    expect(rows[1]).toMatchObject({ reqId: "R1", branchName: "IDBKK-012 : ลาดพร้าว", positionName: "Sales", requestedBy: "มายด์", type: "Hold", evidenceRef: "local:x" });
+    expect(rows[1]).toMatchObject({ reqId: "R1", branchName: "ID BKK-012_ลาดพร้าว", positionName: "Sales", requestedBy: "มายด์", type: "Hold", evidenceRef: "local:x" });
   });
 
   test("respects the viewer's scope", () => {
@@ -64,5 +64,33 @@ describe("buildHoldRows", () => {
     expect(filterHoldRows(rows, { q: "ไม่มีคำนี้" })).toHaveLength(0);
     expect(filterHoldRows(rows, { region: "ภาคเหนือ" })).toHaveLength(0);
     expect(filterHoldRows(rows, {})).toHaveLength(1);
+  });
+});
+
+describe("buildApprovalStatusRows (what an admin sees of the requests)", () => {
+  const data = {
+    requisitions: [req({ id: "R1", status: "PendingHold" }), req({ id: "R2", status: "Cancel" }), req({ id: "R3" }), req({ id: "R4", branch_code: "CNX-001" })],
+    approvals: [
+      approval({ id: "A1", req_id: "R1", requested_at: "2026-11-20T03:00:00Z" }),
+      approval({ id: "A2", req_id: "R2", type: "Cancel", status: "Approved", decided_at: "2026-11-25T03:00:00Z" }),
+      approval({ id: "A3", req_id: "R3", status: "Rejected", decided_at: "2026-09-01T03:00:00Z" }),
+      approval({ id: "A4", req_id: "R4", requested_at: "2026-11-21T03:00:00Z" }),
+    ],
+    branches,
+    positions,
+    users,
+  };
+
+  test("only the type, the position and shop, and the status: pending first, then decided in the last 30 days", () => {
+    const rows = buildApprovalStatusRows(data, user({ email: "ad@example.com", role: "admin" }), "2026-11-27");
+    expect(rows).toEqual([
+      { id: "A4", type: "Hold", positionName: "Sales", branchName: "ID CNX-001", status: "Pending" },
+      { id: "A1", type: "Hold", positionName: "Sales", branchName: "ID BKK-012_ลาดพร้าว", status: "Pending" },
+      { id: "A2", type: "Cancel", positionName: "Sales", branchName: "ID BKK-012_ลาดพร้าว", status: "Approved" },
+    ]);
+  });
+
+  test("requests outside the viewer's scope are left out", () => {
+    expect(buildApprovalStatusRows(data, user({ email: "n@example.com", role: "admin", scope: "ภาคเหนือ" }), "2026-11-27").map((r) => r.id)).toEqual(["A4"]);
   });
 });

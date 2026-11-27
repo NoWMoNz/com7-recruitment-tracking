@@ -33,7 +33,7 @@ describe("buildHiredRows", () => {
   test("one row per hire with employee ID, start date and where they went; latest start first, unknown start last", () => {
     expect(rows.map((r) => r.id)).toEqual(["H2", "H1", "H3"]);
     expect(rows[1]).toMatchObject({
-      employeeId: "E1", name: "นายสมชาย ใจดี", startDate: "2026-11-20", branchCode: "BKK-012", branchName: "IDBKK-012 : ลาดพร้าว",
+      employeeId: "E1", name: "นายสมชาย ใจดี", startDate: "2026-11-20", branchCode: "BKK-012", branchName: "ID BKK-012_ลาดพร้าว",
       positionName: "Sales", taName: "มายด์", am: "ก", rm: "R", ta: "mind@example.com", tatResult: "Meet",
     });
   });

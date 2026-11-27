@@ -25,7 +25,7 @@ describe("buildManpowerRows", () => {
     const { rows } = buildManpowerRows(data([line("A", "SALES", 3, 1), line("A", "SM", 1, 1), line("A", "ASM", 0, 2)]), ju, TODAY);
     expect(rows).toHaveLength(1);
     const a = rows[0];
-    expect(a).toMatchObject({ branchCode: "A", branchName: "IDA : สาขา A", bu: "Apple", quota: 4, actual: 4, short: 2, over: 2, status: "short" });
+    expect(a).toMatchObject({ branchCode: "A", branchName: "ID A_สาขา A", bu: "Apple", quota: 4, actual: 4, short: 2, over: 2, status: "short" });
     const byCode = Object.fromEntries(a.positions.map((p) => [p.positionCode, p]));
     expect(byCode.SALES).toMatchObject({ positionName: "Sales", quota: 3, actual: 1, short: 2, over: 0 });
     expect(byCode.ASM).toMatchObject({ quota: 0, actual: 2, short: 0, over: 2 }); // over with no quota at all

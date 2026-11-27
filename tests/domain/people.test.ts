@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { branchHeads, branchLabel, branchTaOf, handOverPreview, matchesPeople, peopleOfBranch, peopleOptions, taOf } from "@/lib/domain/people";
+import { branchHeads, branchLabel, branchTaOf, matchesPeople, peopleOfBranch, peopleOptions, taOf } from "@/lib/domain/people";
 import { branch, req, user } from "./helpers";
 
 describe("matchesPeople", () => {
@@ -32,11 +32,11 @@ describe("peopleOptions", () => {
 
 describe("branchLabel", () => {
   test("the shop's full name from HR's database", () => {
-    expect(branchLabel("1060", branch({ branch_code: "1060", branch_name: "BB Emquartier Sukhumvit", full_name: " ID1060 : BB-Emquartier-Sukhumvit " }))).toBe("ID1060 : BB-Emquartier-Sukhumvit");
+    expect(branchLabel("105", branch({ branch_code: "105", branch_name: "Studio 7 Central Khonkaen", full_name: " ID 105_Studio 7_Central_Khonkaen " }))).toBe("ID 105_Studio 7_Central_Khonkaen");
   });
   test("without one, the same pattern built from the code and the name; an unknown shop is its code", () => {
-    expect(branchLabel("1060", branch({ branch_code: "1060", branch_name: "BB Emquartier Sukhumvit" }))).toBe("ID1060 : BB Emquartier Sukhumvit");
-    expect(branchLabel("9999", undefined)).toBe("ID9999");
+    expect(branchLabel("1060", branch({ branch_code: "1060", branch_name: "BB Emquartier Sukhumvit" }))).toBe("ID 1060_BB Emquartier Sukhumvit");
+    expect(branchLabel("9999", undefined)).toBe("ID 9999");
   });
 });
 
@@ -44,6 +44,9 @@ describe("taOf", () => {
   const names = (e: string) => ({ "mind@example.com": "มายด์" })[e];
   test("the shop's TA from HR's database wins over the requisition's owner", () => {
     expect(taOf(branch({ branch_code: "B1", ta: " Chuthathip " }), "mind@example.com", names)).toEqual({ ta: "chuthathip", taName: "Chuthathip" });
+  });
+  test("a TA name set on the position itself wins over the shop's", () => {
+    expect(taOf(branch({ branch_code: "B1", ta: "Chuthathip" }), "mind@example.com", names, " Ameena ")).toEqual({ ta: "ameena", taName: "Ameena" });
   });
   test("otherwise the owner, by their account name; nobody gives blanks", () => {
     expect(taOf(branch({ branch_code: "B1" }), "Mind@Example.com", names)).toEqual({ ta: "mind@example.com", taName: "มายด์" });
@@ -78,7 +81,7 @@ describe("peopleOfBranch", () => {
   });
 });
 
-describe("branchHeads / handOverPreview", () => {
+describe("branchHeads", () => {
   const reqs = [
     req({ id: "1", branch_code: "B1", ta_email: "Mind@example.com", status: "Vacancy" }),
     req({ id: "2", branch_code: "B1", ta_email: "mind@example.com", status: "Hold" }),
@@ -97,14 +100,8 @@ describe("branchHeads / handOverPreview", () => {
     expect(heads.ZZ).toMatchObject({ known: false, taEmail: "" });
   });
 
-  test("handing a branch to the TA already shown still gathers positions others own", () => {
-    expect(handOverPreview(heads.B1, "mind@example.com")).toEqual({ moving: 1, changes: true });
-  });
-  test("nothing to move and the same single rule changes nothing", () => {
-    expect(handOverPreview({ ...heads.B1, owned: { "mind@example.com": 3 } }, "MIND@example.com")).toEqual({ moving: 0, changes: false });
-  });
-  test("another TA takes every position they do not own yet", () => {
-    expect(handOverPreview(heads.B1, "ploy@example.com")).toEqual({ moving: 2, changes: true });
-    expect(handOverPreview(heads.B1, "")).toEqual({ moving: 0, changes: false });
+  test("a shop with a TA from HR's database shows that name", () => {
+    const named = branchHeads(["B1"], [branch({ branch_code: "B1", ta: "Chuthathip" })], rules, reqs, []);
+    expect(named.B1).toMatchObject({ taName: "Chuthathip", taEmail: "mind@example.com" });
   });
 });

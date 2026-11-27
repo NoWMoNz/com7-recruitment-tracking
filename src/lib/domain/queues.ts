@@ -2,7 +2,8 @@ import { branchLabel, peopleOfBranch, taOf } from "./people";
 import { holdStart } from "./approval";
 import { canEditRequisition, inScope, normalizeEmail } from "./permissions";
 import { computeTat, holdDays } from "./tat";
-import { buOf, type Approval, type ApprovalType, type Branch, type LocalDate, type Position, type Requisition, type StatusLogEntry, type User } from "./types";
+import { addDays } from "./dates";
+import { buOf, type Approval, type ApprovalStatus, type ApprovalType, type Branch, type LocalDate, type Position, type Requisition, type StatusLogEntry, type User } from "./types";
 
 interface Lookups {
   requisitions: Requisition[];
@@ -47,7 +48,7 @@ function makeLookup(d: Lookups) {
       branchName: branchLabel(r.branch_code, b),
       positionName: positions.get(r.position_code)?.position_name || r.position_code,
       requestDate: r.request_date,
-      ...taOf(b, r.ta_email, (e) => users.get(e)?.name),
+      ...taOf(b, r.ta_email, (e) => users.get(e)?.name, r.ta_name),
       ...peopleOfBranch(b),
     };
   };
@@ -85,6 +86,34 @@ export function buildApprovalRows(d: Lookups & { approvals: Approval[] }, viewer
     });
   }
   return rows.sort((a, b) => a.requestedAt.localeCompare(b.requestedAt));
+}
+
+/** What an admin sees of a Cancel / Hold request: which position, and where it stands. Nothing else. */
+export interface ApprovalStatusRow {
+  id: string;
+  type: ApprovalType;
+  positionName: string;
+  branchName: string;
+  status: ApprovalStatus;
+}
+
+/** Requests the viewer can see: every pending one (newest first), then the ones decided in the last `days` days. */
+export function buildApprovalStatusRows(d: Lookups & { approvals: Approval[] }, viewer: User, today: LocalDate, days = 30): ApprovalStatusRow[] {
+  const { place, visible } = makeLookup(d);
+  const reqs = new Map(d.requisitions.map((r) => [r.id, r]));
+  const since = addDays(today, -days);
+  const shown = d.approvals.filter((a) => {
+    const r = reqs.get(a.req_id);
+    if (!r || !visible(viewer, r)) return false;
+    return a.status === "Pending" || a.decided_at.slice(0, 10) >= since;
+  });
+  const order = (a: Approval) => (a.status === "Pending" ? 0 : 1);
+  return shown
+    .sort((a, b) => order(a) - order(b) || (b.status === "Pending" ? b.requested_at.localeCompare(a.requested_at) : b.decided_at.localeCompare(a.decided_at)))
+    .map((a) => {
+      const p = place(reqs.get(a.req_id)!);
+      return { id: a.id, type: a.type, positionName: p.positionName, branchName: p.branchName, status: a.status };
+    });
 }
 
 export interface HoldRow extends Place {

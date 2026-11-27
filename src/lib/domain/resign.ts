@@ -104,8 +104,8 @@ export function buildResignRows(
       reqId: linkedReq?.id ?? null,
       reqStatus: linkedReq?.status ?? null,
       reqTaEmail: linkedReq?.ta_email ?? "",
-      ...taOf(b, linkedReq?.ta_email ?? "", (e) => users.get(e)?.name),
-      canWithdraw: !withdrawn && (viewer.role === "ta" || viewer.role === "super_admin"),
+      ...taOf(b, linkedReq?.ta_email ?? "", (e) => users.get(e)?.name, linkedReq?.ta_name),
+      canWithdraw: !withdrawn && viewer.role !== "viewer",
     });
   }
   return rows.sort((a, b) => b.effectiveDate.localeCompare(a.effectiveDate) || a.employeeId.localeCompare(b.employeeId));
@@ -153,7 +153,7 @@ export function planWithdrawal(args: {
   const { row, req, viewer, today, ids, now } = args;
   const fail = (errors: Record<string, string>) => ({ ok: false as const, errors });
 
-  if (viewer.role !== "ta" && viewer.role !== "super_admin") return fail({ form: "คุณไม่มีสิทธิ์ยกเลิกลาออก" });
+  if (viewer.role === "viewer") return fail({ form: "คุณไม่มีสิทธิ์ยกเลิกลาออก" });
   if (!inScope(viewer, args.branch ?? { region: UNKNOWN_REGION, branch_code: row.branch_code })) return fail({ form: "สาขานี้อยู่นอกขอบเขตของคุณ" });
   if (!row.processed_at) return fail({ form: "รายการนี้ยังไม่ได้ประมวลผล" });
   if (row.cancelled_at) return fail({ form: "รายการนี้ยกเลิกลาออกไปแล้ว" });
@@ -235,7 +235,7 @@ export function planNewResignation(args: {
   viewer: User;
 }): Plan<{ row: ImportResign }> {
   const { input, viewer } = args;
-  if (viewer.role !== "ta" && viewer.role !== "super_admin") return { ok: false, errors: { form: "คุณไม่มีสิทธิ์เพิ่มรายชื่อลาออก" } };
+  if (viewer.role === "viewer") return { ok: false, errors: { form: "คุณไม่มีสิทธิ์เพิ่มรายชื่อลาออก" } };
   const errors: Record<string, string> = {};
   const text = (v: unknown) => String(v ?? "").trim();
   const employeeId = text(input.employeeId);

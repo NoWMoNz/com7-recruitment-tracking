@@ -18,7 +18,7 @@ async function ResignationsContent() {
     repo.list("Users"),
   ]);
   const rows = buildResignRows({ resign, requisitions, branches, positions, users }, user, todayBangkok());
-  const canAdd = user.role === "ta" || user.role === "super_admin";
+  const canAdd = user.role !== "viewer";
   const branchOptions = branches
     .filter((b) => b.status !== "Closed" && inScope(user, b))
     .map((b) => ({ value: b.branch_code, label: branchLabel(b.branch_code, b) }))

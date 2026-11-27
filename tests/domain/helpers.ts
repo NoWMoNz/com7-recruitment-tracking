@@ -3,7 +3,7 @@ import type { Branch, Offer, Position, Requisition, StatusLogEntry, User } from 
 export function req(p: Partial<Requisition> & Pick<Requisition, "id">): Requisition {
   return {
     branch_code: "BKK-012", position_code: "SALES", request_date: "2026-10-02", source: "Resign", source_ref: "",
-    ta_email: "mind@example.com", status: "Vacancy", status_date: null, offer_id: "", closed_at: null, version: 1,
+    ta_email: "mind@example.com", ta_name: "", status: "Vacancy", status_date: null, offer_id: "", closed_at: null, version: 1,
     created_at: "", updated_at: "", ...p,
   };
 }

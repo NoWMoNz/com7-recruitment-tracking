@@ -80,6 +80,8 @@ describe("convertQuota", () => {
     ]);
     expect(out.initial.map((i) => i.branch_code)).toEqual(["103", "103"]);
     expect(out.summary).toMatchObject({ closedBranches: 1, closedOpenings: 3, openings: 2 });
+    // The full name is HR's shop name as written (the Zone sheet's Name_), without the closing marker.
+    expect(out.branches.map((b) => b.full_name)).toEqual(["ID 1831_BBP-MarketVillage", "ID 103_Studio 7_Paradise Park_Srinakarin"]);
   });
 
   it("keeps quota and actual for every position line, including over, empty and closed shops", () => {

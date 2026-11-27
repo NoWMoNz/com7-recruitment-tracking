@@ -33,6 +33,10 @@ describe("canEditRequisition", () => {
   test("super_admin always", () => {
     expect(canEditRequisition(user({ email: "ju@x", role: "super_admin" }), r)).toBe(true);
   });
+  test("admin works on every position; a viewer on none", () => {
+    expect(canEditRequisition(user({ email: "ad@x", role: "admin" }), r)).toBe(true);
+    expect(canEditRequisition(user({ email: "mind@com7.co.th", role: "viewer" }), r)).toBe(false);
+  });
   test("ta only own", () => {
     expect(canEditRequisition(user({ email: "mind@com7.co.th" }), r)).toBe(true);
     expect(canEditRequisition(user({ email: "other@com7.co.th" }), r)).toBe(false);

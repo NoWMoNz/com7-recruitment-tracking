@@ -69,7 +69,7 @@ export function buildHiredRows(
       region: b?.region || UNKNOWN_REGION,
       province: b?.province ?? "",
       ...peopleOfBranch(b),
-      ...taOf(b, ta, (e) => users.get(e)?.name),
+      ...taOf(b, ta, (e) => users.get(e)?.name, r?.ta_name),
     });
   }
   const startKey = (x: HiredRow) => x.startDate ?? "";

@@ -5,11 +5,14 @@ import { LogoutIcon, PRESS } from "@/components/pending";
 import { RAIL_LABEL, SectionTabs, SidebarNav } from "@/components/sidebar-nav";
 import { getSessionUser } from "@/lib/auth/session-user";
 import { getRepo } from "@/lib/repo";
+import { normalizeEmail } from "@/lib/domain/permissions";
+import type { User } from "@/lib/domain/types";
 import { cn } from "@/lib/utils";
 import { logout } from "./actions";
+import { ChangePasswordButton } from "./change-password";
 import { RefreshButton } from "./refresh-button";
 
-const ROLE_LABEL = { super_admin: "ผู้ดูแลระบบ", ta: "TA", viewer: "ผู้ดูรายงาน" } as const;
+const ROLE_LABEL = { super_admin: "ผู้ดูแลระบบ", admin: "แอดมิน", ta: "TA", viewer: "ผู้ดูรายงาน" } as const;
 
 function LogoutButton({ className, rail = false }: { className?: string; rail?: boolean }) {
   return (
@@ -41,18 +44,31 @@ function LogoutButton({ className, rail = false }: { className?: string; rail?: 
   );
 }
 
-/** Rail menu; super_admins also get Approvals and Processing, badged with what is waiting for them. */
+/** Rail menu by role; super_admin's Approvals and Processing are badged with what is waiting for them. */
 async function RailNav() {
   const user = await getSessionUser();
-  if (user.role !== "super_admin") return <SidebarNav />;
+  if (user.role !== "super_admin") return <SidebarNav role={user.role} />;
   const [approvals, reviews] = await Promise.all([getRepo().list("Approvals"), getRepo().list("ReviewQueue")]);
-  const admin = { approvals: approvals.filter((a) => a.status === "Pending").length, reviews: reviews.filter((r) => !r.resolved_at).length };
-  return <SidebarNav admin={admin} />;
+  const badges = { approvals: approvals.filter((a) => a.status === "Pending").length, reviews: reviews.filter((r) => !r.resolved_at).length };
+  return <SidebarNav role={user.role} badges={badges} />;
 }
 
-/** Bottom of the rail: who is signed in, and sign out. */
+/** Tabs between the pages of the current section that the user may open. */
+async function RoleSectionTabs() {
+  const user = await getSessionUser();
+  return <SectionTabs role={user.role} />;
+}
+
+/** Whether the user can sign in with a name and password (and so has one to change). */
+async function hasPasswordLogin(user: User): Promise<boolean> {
+  const logins = await getRepo().list("Logins").catch(() => []);
+  return logins.some((l) => normalizeEmail(l.email) === normalizeEmail(user.email));
+}
+
+/** Bottom of the rail: who is signed in, change password (name + password sign-ins), and sign out. */
 async function RailUser() {
   const user = await getSessionUser();
+  const withPassword = await hasPasswordLogin(user);
   return (
     <>
       <div title={`${user.name} · ${ROLE_LABEL[user.role]}`} className="flex h-11 w-full items-center gap-3 overflow-hidden">
@@ -62,6 +78,7 @@ async function RailUser() {
           <span className="block truncate text-xs text-foreground/60">{ROLE_LABEL[user.role]}</span>
         </span>
       </div>
+      {withPassword && <ChangePasswordButton rail />}
       <LogoutButton rail />
     </>
   );
@@ -69,6 +86,7 @@ async function RailUser() {
 
 async function TopUser() {
   const user = await getSessionUser();
+  const withPassword = await hasPasswordLogin(user);
   return (
     <div className="flex items-center gap-2">
       <RefreshButton />
@@ -81,6 +99,7 @@ async function TopUser() {
           <span className="block text-xs text-muted-foreground">{ROLE_LABEL[user.role]}</span>
         </span>
       </span>
+      {withPassword && <ChangePasswordButton className="lg:hidden" />}
       <LogoutButton className="lg:hidden" />
     </div>
   );
@@ -121,7 +140,9 @@ export default function AppLayout({ children }: LayoutProps<"/">) {
             <TopUser />
           </Suspense>
         </header>
-        <SectionTabs />
+        <Suspense fallback={null}>
+          <RoleSectionTabs />
+        </Suspense>
         <main className="flex-1">{children}</main>
       </div>
     </div>

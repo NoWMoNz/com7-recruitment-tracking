@@ -49,6 +49,8 @@ function cols(...defs: string[]): ColSpec[] {
 const REQUISITION_COLS = cols(
   "id", "branch_code", "position_code", "request_date:d", "source", "source_ref", "ta_email", "status",
   "status_date:d", "offer_id", "closed_at:d", "version:n", "created_at", "updated_at",
+  // TA name set on this position alone (over the shop's TA in Branches); added after go-live, so it comes last.
+  "ta_name",
 );
 const OFFER_COLS = cols(
   "id", "req_id", "title", "first_name", "last_name", "phone", "offer_date:d", "sourcing_channel",
@@ -61,7 +63,7 @@ const STATUS_LOG_COLS = cols(
 const defs: [TabName, boolean, ColSpec[]][] = [
   ["Branches", false, cols(
     "branch_code", "branch_name", "brand", "bu", "province", "region", "status", "open_date:d", "close_date:d", "am", "rm",
-    // From HR's shop database (Zone TA file): its full shop name, and the TA who recruits for the shop.
+    // HR's full shop name (Name_ of the Zone sheet) and the TA who recruits for the shop (Zone TA file).
     "full_name", "ta",
   )],
   ["Positions", false, cols("position_code", "position_name", "position_group", "sla_days:n")],

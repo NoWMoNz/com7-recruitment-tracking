@@ -21,8 +21,9 @@ export function inScope(user: User, branch: Pick<Branch, "region" | "branch_code
   return tokens.some((t) => t === region || t === code);
 }
 
+/** Day-to-day work on a position (Offer, Turndown, Hold / Cancel requests, its TA): an admin on any, a TA on their own. */
 export function canEditRequisition(user: User, req: Requisition): boolean {
-  if (user.role === "super_admin") return true;
+  if (user.role === "super_admin" || user.role === "admin") return true;
   if (user.role === "ta") return normalizeEmail(req.ta_email) === normalizeEmail(user.email);
   return false;
 }

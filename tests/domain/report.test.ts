@@ -180,7 +180,7 @@ describe("weekly hires and turndowns", () => {
     ];
     const rows = hiresBetween({ ...base, newHires }, reqs, "2026-11-16", "2026-11-22");
     expect(rows).toHaveLength(2);
-    expect(rows[0]).toMatchObject({ branchName: "IDBKK-012 : ลาดพร้าว", positionName: "Sales", taName: "มายด์" });
+    expect(rows[0]).toMatchObject({ branchName: "ID BKK-012_ลาดพร้าว", positionName: "Sales", taName: "มายด์" });
     expect(groupHires(rows, "channel")).toEqual([{ key: "JobThai", hired: 2, avgTat: 30, meetPct: 50 }]);
   });
 

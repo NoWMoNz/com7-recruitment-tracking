@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { getSessionUser } from "@/lib/auth/session-user";
 import { todayBangkok } from "@/lib/domain/dates";
+import { taNameChoices } from "@/lib/domain/branch-ta";
 import { assignableUsers } from "@/lib/domain/master";
 import { earliestDate } from "@/lib/domain/offer";
 import { branchHeads } from "@/lib/domain/people";
@@ -47,7 +48,8 @@ async function TrackingContent({ searchParams }: { searchParams: Promise<{ mine?
     backdateDays: settings.backdateDays,
     channels: channelRows.filter((c) => c.active).map((c) => c.channel),
     isAdmin: user.role === "super_admin",
-    canChangeBranchTa: user.role === "ta" || user.role === "super_admin",
+    canChangeBranchTa: user.role !== "viewer",
+    taNames: taNameChoices(branches, requisitions),
     assignable: assignableUsers(users).map((x) => ({ value: normalizeEmail(x.email), label: x.name })),
   };
 

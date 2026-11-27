@@ -96,7 +96,7 @@ export function offerOutcomes(
     const r = reqById.get(o.req_id);
     const b = branchByCode.get(r?.branch_code ?? "");
     if (!b || !inScope(viewer, b)) return;
-    out.push({ region: b.region || UNKNOWN_REGION, province: b.province, bu: buOf(b), ...peopleOfBranch(b), ta: taOf(b, r?.ta_email ?? "", () => undefined).ta, declinedReason });
+    out.push({ region: b.region || UNKNOWN_REGION, province: b.province, bu: buOf(b), ...peopleOfBranch(b), ta: taOf(b, r?.ta_email ?? "", () => undefined, r?.ta_name).ta, declinedReason });
   };
   for (const o of d.offers) add(o, null);
   for (const o of d.newHires) add(o, null);

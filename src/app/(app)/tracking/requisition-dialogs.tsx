@@ -12,7 +12,8 @@ import type { TrackingRow } from "@/lib/domain/tracking";
 import { cn } from "@/lib/utils";
 import { Field, FIELD, FormError, useSubmit } from "../form-bits";
 import { editRequisition } from "../master/actions";
-import { submitApprovalRequest, submitOffer, submitOfferEdit, submitTurndown } from "./actions";
+import { changeRequisitionTa, submitApprovalRequest, submitOffer, submitOfferEdit, submitTurndown } from "./actions";
+import { TaNameInput } from "./branch-ta-dialog";
 
 export interface EditContext {
   today: LocalDate;
@@ -24,8 +25,10 @@ export interface EditContext {
   isAdmin: boolean;
   /** Active TAs and super_admins, for the owner picker. */
   assignable: { value: string; label: string }[];
-  /** TAs and super_admins can hand a branch to another TA. */
+  /** TAs, admins and super_admins can set a shop's TA. */
   canChangeBranchTa: boolean;
+  /** TA names in use, to pick from when changing a shop's or a position's TA. */
+  taNames: string[];
 }
 
 export type DialogTarget = { mode: "offer" | "turndown" | "edit"; row: TrackingRow } | null;
@@ -446,19 +449,47 @@ function AdminEditForm({ row, ctx, onDone }: { row: TrackingRow; ctx: EditContex
   );
 }
 
-type Action = "offer" | "offerEdit" | "Hold" | "Cancel" | "turndown" | "edit";
-const ACTION_LABEL: Record<Action, string> = { offer: "กรอก Offer", offerEdit: "ข้อมูล Offer", Hold: "ขอพัก (Hold)", Cancel: "ขอยกเลิก", turndown: "Turndown", edit: "แก้ไข (ผู้ดูแล)" };
+/** One position's TA, by name. */
+function TaForm({ row, ctx, onDone }: { row: TrackingRow; ctx: EditContext; onDone: () => void }) {
+  const uid = useId();
+  const [name, setName] = useState(row.taName);
+  const { pending, errors, run, clear } = useSubmit(onDone);
+  return (
+    <form
+      className="grid gap-4"
+      onSubmit={(e) => {
+        e.preventDefault();
+        run(() => changeRequisitionTa(row.id, row.version, name), "เปลี่ยน TA ของตำแหน่งนี้แล้ว");
+      }}
+    >
+      <RowSummary row={row} />
+      <FormError message={errors.form} />
+      <Field id={`${uid}-ta`} label="TA ของตำแหน่งนี้" error={errors.name}>
+        <TaNameInput id={`${uid}-ta`} value={name} onChange={(v) => (setName(v), clear("name"))} names={ctx.taNames} invalid={Boolean(errors.name)} />
+      </Field>
+      <DialogFooter>
+        <button type="submit" disabled={pending} className="h-10 rounded-full bg-ink-chip px-6 text-sm font-medium text-white outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-60">
+          {pending ? "กำลังบันทึก…" : "เปลี่ยน TA"}
+        </button>
+      </DialogFooter>
+    </form>
+  );
+}
+
+type Action = "offer" | "offerEdit" | "Hold" | "Cancel" | "turndown" | "ta" | "edit";
+const ACTION_LABEL: Record<Action, string> = { offer: "กรอก Offer", offerEdit: "ข้อมูล Offer", Hold: "ขอพัก (Hold)", Cancel: "ขอยกเลิก", turndown: "Turndown", ta: "เปลี่ยน TA", edit: "แก้ไข (ผู้ดูแล)" };
 const ACTION_HINT: Record<Action, string> = {
   offer: "บันทึกผู้ได้รับ Offer ของตำแหน่งนี้",
   offerEdit: "ดูหรือแก้ข้อมูล Offer และกำหนดวันเริ่มงาน",
   Hold: "ส่งคำขอพร้อมรูปหลักฐาน ให้ผู้ดูแลระบบอนุมัติ",
   Cancel: "ส่งคำขอพร้อมรูปหลักฐาน ให้ผู้ดูแลระบบอนุมัติ",
   turndown: "ถ้าผู้สมัครปฏิเสธ ให้บันทึก Turndown",
+  ta: "ตั้ง TA ของตำแหน่งนี้ตำแหน่งเดียว (เลือก TA ประจำสาขาเพื่อกลับไปใช้ของสาขา)",
   edit: "แก้วันที่แจ้งสรรหาหรือเปลี่ยน TA เจ้าของ",
 };
 
 function actionsFor(target: NonNullable<DialogTarget>, ctx: EditContext): Action[] {
-  const base: Action[] = target.mode === "offer" ? ["offer", "Hold", "Cancel"] : target.mode === "turndown" ? (target.row.offer ? ["offerEdit", "turndown"] : ["turndown"]) : [];
+  const base: Action[] = target.mode === "offer" ? ["offer", "Hold", "Cancel", "ta"] : target.mode === "turndown" ? (target.row.offer ? ["offerEdit", "turndown", "ta"] : ["turndown", "ta"]) : [];
   return ctx.isAdmin ? [...base, "edit"] : base;
 }
 
@@ -514,6 +545,8 @@ export function RequisitionDialog({ target, ctx, onClose }: { target: DialogTarg
               <OfferEditForm key={`${target.row.id}-offer`} row={target.row} ctx={ctx} onDone={close} />
             ) : action === "offer" ? (
               <OfferForm key={target.row.id} row={target.row} ctx={ctx} onDone={close} />
+            ) : action === "ta" ? (
+              <TaForm key={`${target.row.id}-ta`} row={target.row} ctx={ctx} onDone={close} />
             ) : action === "edit" ? (
               <AdminEditForm key={`${target.row.id}-edit`} row={target.row} ctx={ctx} onDone={close} />
             ) : (

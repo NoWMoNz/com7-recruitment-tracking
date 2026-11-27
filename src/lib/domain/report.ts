@@ -139,7 +139,7 @@ function lookups(d: ReportData) {
   const nameOf = (email: string) => (email ? users.get(normalizeEmail(email))?.name || email : "ยังไม่มีเจ้าของ");
   /** The TA a requisition counts under (the shop's TA, else its owner; see taOf). */
   const taFor = (r: Requisition) => {
-    const t = taOf(branches.get(r.branch_code), r.ta_email, (e) => users.get(e)?.name);
+    const t = taOf(branches.get(r.branch_code), r.ta_email, (e) => users.get(e)?.name, r.ta_name);
     return { ta: t.ta, taName: t.taName || "ยังไม่มีเจ้าของ" };
   };
   return { branches, positions, regionOf, nameOf, taFor };

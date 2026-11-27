@@ -12,7 +12,7 @@ export type MasterEntity = "Branches" | "Positions" | "SourcingChannels" | "Recr
 export type FormInput = Record<string, string>;
 
 export const BRANCH_STATUSES = ["Open", "Closed", "Project"] as const;
-export const ROLES: Role[] = ["super_admin", "ta", "viewer"];
+export const ROLES: Role[] = ["super_admin", "admin", "ta", "viewer"];
 export const REQUISITION_SOURCES = ["NewStore", "Project", "Additional"] as const;
 
 export function keyOf(entity: MasterEntity, row: Record<string, unknown>): string {
@@ -182,7 +182,7 @@ export function planNewRequisitions(args: {
   for (let i = 0; i < headcount; i++) {
     const { reqId, logId } = args.ids();
     requisitions.push({
-      id: reqId, branch_code: branch, position_code: position, request_date: requestDate, source, source_ref: `WEB:${at}:${i + 1}`, ta_email: ta,
+      id: reqId, branch_code: branch, position_code: position, request_date: requestDate, source, source_ref: `WEB:${at}:${i + 1}`, ta_email: ta, ta_name: "",
       status: "Vacancy", status_date: requestDate, offer_id: "", closed_at: null, version: 1, created_at: at, updated_at: at,
     });
     log.push({ id: logId, req_id: reqId, from_status: "", to_status: "Vacancy", effective_date: requestDate, actor: viewer.email, at, note: `เพิ่มผ่านเว็บ (${source})${text(input.note) ? `: ${text(input.note)}` : ""}`, ref_id: "" });

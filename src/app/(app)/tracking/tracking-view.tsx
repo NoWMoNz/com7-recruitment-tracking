@@ -423,7 +423,7 @@ export function TrackingView({ rows, branches, mineOnly, canFilterMine, editCont
       })}
 
       <RequisitionDialog target={target} ctx={editContext} onClose={() => setTarget(null)} />
-      <BranchTaDialog target={taTarget} assignable={editContext.assignable} onClose={() => setTaTarget(null)} />
+      <BranchTaDialog target={taTarget} names={editContext.taNames} onClose={() => setTaTarget(null)} />
     </div>
   );
 }

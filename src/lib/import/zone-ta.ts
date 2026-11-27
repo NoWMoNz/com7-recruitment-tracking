@@ -1,10 +1,12 @@
+import { withoutClosedMark } from "./quota";
+
 /**
- * HR's shop database ("Zone TA" file): one line per shop with its full name, AM, RM and TA.
- * Columns: ID | Name ("ID1060 : BB-Emquartier-Sukhumvit") | จังหวัด | ภาค | BU | RM | AM | TA.
+ * HR's shop database ("Zone TA" file): one line per shop with its AM, RM and TA.
+ * Columns: ID | Name | จังหวัด | ภาค | BU | RM | AM | TA. Its Name ("ID1060 : BB-…") is not used: shops are named
+ * as in the Name_ column of the Zone sheet in HR's quota file ("ID 1060_BB_Emquartier_Sukhumvit").
  */
 export interface ZoneTaRow {
   id: string;
-  name: string;
   am: string;
   rm: string;
   ta: string;
@@ -23,13 +25,28 @@ export function zoneText(v: string): string {
   return t === "-" || t.startsWith("#") ? "" : t;
 }
 
-/** Shops by ID. A repeated ID keeps its first line, filling only what that line left blank. */
-export function shopsFromZoneTa(rows: ZoneTaRow[]): Map<string, ZoneShop> {
+/** Full shop names by ID from the Zone sheet's Name_ column, without "(ปิด…)" (Branches keeps closing as a status and date). */
+export function shopNamesFromZone(rows: { id: string; name: string }[]): Map<string, string> {
+  const byId = new Map<string, string>();
+  for (const r of rows) {
+    const id = r.id.trim();
+    const name = withoutClosedMark(zoneText(r.name));
+    if (id && name && !byId.has(id)) byId.set(id, name);
+  }
+  return byId;
+}
+
+/**
+ * Shops by ID: AM / RM / TA from the TA file, full names from `names`. A repeated ID keeps its first line,
+ * filling only what that line left blank; a shop with only a name still gets it.
+ */
+export function shopsFromZoneTa(rows: ZoneTaRow[], names: ReadonlyMap<string, string> = new Map()): Map<string, ZoneShop> {
   const byId = new Map<string, ZoneShop>();
+  for (const [id, full_name] of names) byId.set(id, { full_name, am: "", rm: "", ta: "" });
   for (const r of rows) {
     const id = r.id.trim();
     if (!id) continue;
-    const next: ZoneShop = { full_name: zoneText(r.name), am: zoneText(r.am), rm: zoneText(r.rm), ta: zoneText(r.ta) };
+    const next: ZoneShop = { full_name: names.get(id) ?? "", am: zoneText(r.am), rm: zoneText(r.rm), ta: zoneText(r.ta) };
     const seen = byId.get(id);
     if (!seen) byId.set(id, next);
     else for (const k of Object.keys(next) as (keyof ZoneShop)[]) if (!seen[k]) seen[k] = next[k];

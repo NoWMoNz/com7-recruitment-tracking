@@ -119,7 +119,7 @@ export async function loadReport(viewer: User, params: ReportParams): Promise<Re
     ...visibleBranches.map((b) => ({ ...peopleOfBranch(b), ...taOf(b, "", userNameOf) })),
     ...requisitions
       .filter((r) => branchBy.get(r.branch_code) && inScope(viewer, branchBy.get(r.branch_code)!))
-      .map((r) => ({ am: "", rm: "", ...taOf(branchBy.get(r.branch_code), r.ta_email, userNameOf) })),
+      .map((r) => ({ am: "", rm: "", ...taOf(branchBy.get(r.branch_code), r.ta_email, userNameOf, r.ta_name) })),
   ]);
   const options: FilterOptions = {
     bus: [...new Set(visibleBranches.map(buOf))].sort((a, b) => a.localeCompare(b, "th")),
@@ -160,7 +160,7 @@ export async function loadReport(viewer: User, params: ReportParams): Promise<Re
   const history: HistoryItem[] = ordered.slice(0, HISTORY_LIMIT).map((r) => ({
     id: r.id,
     title: `${positionBy.get(r.position_code)?.position_name ?? r.position_code} · ${branchLabel(r.branch_code, branchBy.get(r.branch_code))}`,
-    subtitle: `${r.id} · แจ้งสรรหา ${formatThaiDate(r.request_date)} · TA ${taOf(branchBy.get(r.branch_code), r.ta_email, userNameOf).taName || "ยังไม่มีเจ้าของ"} · ที่มา ${r.source || "-"}`,
+    subtitle: `${r.id} · แจ้งสรรหา ${formatThaiDate(r.request_date)} · TA ${taOf(branchBy.get(r.branch_code), r.ta_email, userNameOf, r.ta_name).taName || "ยังไม่มีเจ้าของ"} · ที่มา ${r.source || "-"}`,
     status: r.status,
     entries: (logBy.get(r.id) ?? [])
       .slice()

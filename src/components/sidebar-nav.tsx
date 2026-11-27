@@ -3,19 +3,23 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ClipboardList, FileBarChart, LayoutDashboard, PauseCircle, Settings, ShieldCheck, type LucideIcon } from "lucide-react";
+import type { Role } from "@/lib/domain/types";
 import { cn } from "@/lib/utils";
 
 interface Page {
   href: string;
   label: string;
+  /** Who sees the page; everyone when left out. A group shows when any of its pages does. */
+  roles?: Role[];
 }
 interface Group {
-  /** Rail label; the first page is where the rail item leads. */
+  /** Rail label; the first page the viewer may see is where the rail item leads. */
   label: string;
   icon: LucideIcon;
   pages: Page[];
-  adminOnly?: boolean;
 }
+
+const SUPER: Role[] = ["super_admin"];
 
 /** One rail item per group; pages that belong together share it and switch with tabs at the top of the page. */
 const GROUPS: Group[] = [
@@ -41,19 +45,18 @@ const GROUPS: Group[] = [
   {
     label: "งานรอจัดการ",
     icon: ShieldCheck,
-    adminOnly: true,
     pages: [
-      { href: "/approvals", label: "อนุมัติ Cancel / Hold" },
-      { href: "/process", label: "ประมวลผลข้อมูล" },
+      // An admin sees the requests' status only (see the approvals page).
+      { href: "/approvals", label: "อนุมัติ Cancel / Hold", roles: ["super_admin", "admin"] },
+      { href: "/process", label: "ประมวลผลข้อมูล", roles: SUPER },
     ],
   },
   {
     label: "ตั้งค่า",
     icon: Settings,
-    adminOnly: true,
     pages: [
-      { href: "/master", label: "Master Data" },
-      { href: "/users", label: "กำหนดสิทธิ์ผู้ใช้" },
+      { href: "/master", label: "Master Data", roles: SUPER },
+      { href: "/users", label: "กำหนดสิทธิ์ผู้ใช้", roles: SUPER },
     ],
   },
 ];
@@ -61,6 +64,7 @@ const APPROVALS_HREF = "/approvals";
 const PROCESS_HREF = "/process";
 
 const groupOf = (pathname: string) => GROUPS.find((g) => g.pages.some((p) => pathname.startsWith(p.href)));
+const pagesFor = (g: Group, role: Role | undefined) => g.pages.filter((p) => !p.roles || (role !== undefined && p.roles.includes(role)));
 
 /** Label that fades in when the rail (the `group/rail` ancestor) is hovered or focused. */
 export const RAIL_LABEL =
@@ -68,12 +72,12 @@ export const RAIL_LABEL =
 
 /**
  * Rail navigation. Collapsed it shows icons only; the rail widens on hover/focus and every item shows its
- * name. `admin` is null for anyone but super_admin (the admin items are hidden); its numbers become badges.
+ * name. Pages are shown by `role` (without one, only the pages everyone sees); `badges` are super_admin's to-dos.
  */
-export function SidebarNav({ className, admin = null }: { className?: string; admin?: { approvals: number; reviews: number } | null }) {
+export function SidebarNav({ className, role, badges: counts = null }: { className?: string; role?: Role; badges?: { approvals: number; reviews: number } | null }) {
   const pathname = usePathname();
-  const groups = GROUPS.filter((g) => !g.adminOnly || admin !== null);
-  const badges: Record<string, number> = { [APPROVALS_HREF]: admin?.approvals ?? 0, [PROCESS_HREF]: admin?.reviews ?? 0 };
+  const groups = GROUPS.map((g) => ({ ...g, pages: pagesFor(g, role) })).filter((g) => g.pages.length > 0);
+  const badges: Record<string, number> = { [APPROVALS_HREF]: counts?.approvals ?? 0, [PROCESS_HREF]: counts?.reviews ?? 0 };
   const waiting: Record<string, string> = { [APPROVALS_HREF]: "รอ", [PROCESS_HREF]: "ต้องตรวจ" };
   return (
     <nav aria-label="เมนูหลัก" className={cn("flex w-full flex-col gap-2", className)}>
@@ -116,9 +120,10 @@ export function SidebarNav({ className, admin = null }: { className?: string; ad
  * Tabs for switching between the pages of the group the current page belongs to. Renders nothing for a page
  * that is on its own, so the layout can always include it.
  */
-export function SectionTabs() {
+export function SectionTabs({ role }: { role: Role }) {
   const pathname = usePathname();
-  const group = groupOf(pathname);
+  const found = groupOf(pathname);
+  const group = found && { ...found, pages: pagesFor(found, role) };
   if (!group || group.pages.length < 2) return null;
   return (
     <nav aria-label={group.label} className="inline-flex max-w-full gap-1 self-start overflow-x-auto rounded-full bg-black/[0.06] p-1 [scrollbar-width:none]">

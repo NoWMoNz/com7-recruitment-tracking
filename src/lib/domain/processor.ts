@@ -170,6 +170,7 @@ export function planProcessing(input: ProcessorInput): ProcessorPlan {
       source: p.source,
       source_ref: p.sourceRef,
       ta_email: p.ta ?? assignTa(p.branch, positions.get(p.position)?.position_group ?? "", input.assignments),
+      ta_name: "",
       status: "Vacancy",
       status_date: p.requestDate,
       offer_id: "",

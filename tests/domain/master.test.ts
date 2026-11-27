@@ -20,8 +20,8 @@ describe("validateMaster", () => {
   });
 
   test("branch: keeps AM, RM, TA and the full name, trimmed", () => {
-    const ok = validateMaster("Branches", { branch_code: "A1", branch_name: "x", region: "ภาคกลาง", status: "Open", am: " โชคชัย ", rm: "ฐกรกฤตย์", ta: " Chuthathip ", full_name: " ID1060 : BB-Emquartier-Sukhumvit " }, ctx());
-    expect(ok.ok && ok.value).toMatchObject({ am: "โชคชัย", rm: "ฐกรกฤตย์", ta: "Chuthathip", full_name: "ID1060 : BB-Emquartier-Sukhumvit" });
+    const ok = validateMaster("Branches", { branch_code: "A1", branch_name: "x", region: "ภาคกลาง", status: "Open", am: " โชคชัย ", rm: "ฐกรกฤตย์", ta: " Chuthathip ", full_name: " ID 1060_BB_Emquartier_Sukhumvit " }, ctx());
+    expect(ok.ok && ok.value).toMatchObject({ am: "โชคชัย", rm: "ฐกรกฤตย์", ta: "Chuthathip", full_name: "ID 1060_BB_Emquartier_Sukhumvit" });
   });
 
   test("branch: Closed needs the closing date; any other status has none (re-opening clears it)", () => {

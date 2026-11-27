@@ -75,7 +75,7 @@ async function MasterContent({ tab }: { tab: Tab }) {
           fields={[
             { name: "branch_code", label: "รหัสสาขา", type: "text", lockOnEdit: true, required: true, placeholder: "เช่น BKK-012" },
             { name: "branch_name", label: "ชื่อสาขา", type: "text", required: true },
-            { name: "full_name", label: "ชื่อเต็ม (ตาม Database)", type: "text", placeholder: "เช่น ID1060 : BB-Emquartier-Sukhumvit", hint: "เว้นว่าง = ใช้ ID + รหัส + ชื่อสาขา" },
+            { name: "full_name", label: "ชื่อเต็ม (ตาม HR)", type: "text", placeholder: "เช่น ID 105_Studio 7_Central_Khonkaen", hint: "ตามคอลัมน์ Name_ ในชีต Zone ของ HR · เว้นว่าง = ใช้ ID + รหัส + ชื่อสาขา" },
             { name: "bu", label: "BU", type: "text", hint: bus.length ? `ที่มี: ${bus.join(", ")}` : "ตาม Group ใหญ่ ในไฟล์ HR เช่น Apple, BaNANA" },
             { name: "brand", label: "แบรนด์ (Group เล็ก)", type: "text" },
             { name: "region", label: "ภาค", type: "text", required: true, hint: regions.length ? `ที่มี: ${regions.join(", ")}` : undefined },

@@ -2,7 +2,7 @@
 
 import { getSessionUser } from "@/lib/auth/session-user";
 import { planRequest } from "@/lib/domain/approval";
-import { planBranchTaChange } from "@/lib/domain/branch-ta";
+import { planBranchTaName, planRequisitionTaName } from "@/lib/domain/branch-ta";
 import { todayBangkok } from "@/lib/domain/dates";
 import { planOffer, planOfferEdit, planTurndown, type OfferInput } from "@/lib/domain/offer";
 import { parseSettings } from "@/lib/domain/settings";
@@ -183,37 +183,49 @@ export async function submitApprovalRequest(form: FormData): Promise<ActionResul
 }
 
 /**
- * Hands a branch to another TA: its not-closed positions move first (version-checked in one write, so a
- * position edited meanwhile stops the whole change), then the branch's assignment rules and the log.
+ * Sets a shop's TA by name: the Branches row first, then its open positions that had their own TA name
+ * (version-checked, so one edited meanwhile stops the rest), then the log.
  */
-export async function changeBranchTa(branchCode: string, taEmail: string): Promise<ActionResult> {
+export async function changeBranchTa(branchCode: string, name: string): Promise<ActionResult> {
   const viewer = await getSessionUser();
   const repo = getRepo();
-  const [branches, users, requisitions, assignments] = await Promise.all([
-    repo.list("Branches"),
-    repo.list("Users"),
-    repo.list("Requisitions"),
-    repo.listNumbered("RecruiterAssignments"),
-  ]);
-  const plan = planBranchTaChange({
-    branch: branches.find((b) => b.branch_code === branchCode),
-    taEmail,
+  const [branchRows, users, requisitions] = await Promise.all([repo.listNumbered("Branches"), repo.list("Users"), repo.list("Requisitions")]);
+  const hit = branchRows.find((b) => b.row.branch_code === branchCode);
+  const plan = planBranchTaName({ branch: hit?.row, name, viewer, users, requisitions, ids: () => newId("LOG"), now: new Date(), today: todayBangkok() });
+  if (!plan.ok) return plan;
+
+  const { branchTa, reqPatches, log } = plan.value;
+  try {
+    await repo.updateAt("Branches", [{ rowNumber: hit!.rowNumber, patch: { ta: branchTa } }]);
+    if (reqPatches.length) await repo.updateMany("Requisitions", reqPatches);
+    if (log.length) await repo.append("StatusLog", log);
+  } catch (e) {
+    return writeError(e);
+  }
+  return { ok: true };
+}
+
+/** Sets the TA of one open position by name (or back to the shop's TA). */
+export async function changeRequisitionTa(reqId: string, expectedVersion: number, name: string): Promise<ActionResult> {
+  const viewer = await getSessionUser();
+  const repo = getRepo();
+  const [req, branches, users] = await Promise.all([repo.getFresh("Requisitions", reqId), repo.list("Branches"), repo.list("Users")]);
+  if (!req) return fail(GONE);
+  if (req.version !== expectedVersion) return fail(CONFLICT);
+  const plan = planRequisitionTaName({
+    req,
+    branch: branches.find((b) => b.branch_code === req.branch_code),
+    name,
     viewer,
     users,
-    assignments,
-    requisitions,
     ids: () => newId("LOG"),
     now: new Date(),
     today: todayBangkok(),
   });
   if (!plan.ok) return plan;
-
-  const { reqPatches, removeRows, assignment, log } = plan.value;
   try {
-    if (reqPatches.length) await repo.updateMany("Requisitions", reqPatches);
-    if (removeRows.length) await repo.removeAt("RecruiterAssignments", removeRows);
-    await repo.append("RecruiterAssignments", [assignment]);
-    if (log.length) await repo.append("StatusLog", log);
+    await repo.update("Requisitions", reqId, plan.value.patch, plan.value.expectedVersion);
+    await repo.append("StatusLog", [plan.value.log]);
   } catch (e) {
     return writeError(e);
   }

@@ -101,7 +101,7 @@ describe("SheetsRepo.append", () => {
     await repo.append("Requisitions", [
       {
         id: "REQ-4", branch_code: "CNX-001", position_code: "SM", request_date: "2026-11-17", source: "NewStore",
-        source_ref: "", ta_email: "", status: "Vacancy", status_date: null, offer_id: "", closed_at: null, version: 1,
+        source_ref: "", ta_email: "", ta_name: "", status: "Vacancy", status_date: null, offer_id: "", closed_at: null, version: 1,
         created_at: "", updated_at: "",
       },
     ]);

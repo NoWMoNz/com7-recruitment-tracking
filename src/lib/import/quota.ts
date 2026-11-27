@@ -42,6 +42,11 @@ export function closedDate(shop: string): LocalDate | null {
   return `${y}-${String(mo).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
 }
 
+/** HR's shop name as written, without a closing marker: "ID 1831_BBP-MarketVillage(ปิด25/10/69)" -> "ID 1831_BBP-MarketVillage". */
+export function withoutClosedMark(shop: string): string {
+  return shop.replace(CLOSED_MARK, "").trim();
+}
+
 /** "ID 103_Studio 7_Paradise Park_Srinakarin" -> "Studio 7 Paradise Park Srinakarin" (without a closing marker). */
 export function branchName(shop: string): string {
   return shop
@@ -104,7 +109,8 @@ export function convertQuota(
         close_date: closedDate(r.shop),
         am: people.get(id)?.am ?? "",
         rm: people.get(id)?.rm ?? "",
-        full_name: "",
+        // The shop as HR names it (the same text as the Zone sheet's Name_ column), e.g. "ID 105_Studio 7_Central_Khonkaen".
+        full_name: withoutClosedMark(r.shop),
         ta: "",
       });
       if (closedDate(r.shop)) closedIds.add(id);

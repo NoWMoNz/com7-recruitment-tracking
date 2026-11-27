@@ -13,7 +13,12 @@ export type Status =
 
 export const ON_PROCESS: readonly Status[] = ["Vacancy", "Offer", "PendingCancel", "PendingHold"];
 
-export type Role = "super_admin" | "ta" | "viewer";
+/**
+ * super_admin: everything. admin: day-to-day work on every position (Offer, Turndown, Hold/Cancel requests,
+ * TA changes, resignations that wait for processing) but no approving, processing or settings.
+ * ta: the same on their own positions. viewer: read only.
+ */
+export type Role = "super_admin" | "admin" | "ta" | "viewer";
 
 export interface Requisition {
   id: string;
@@ -23,6 +28,8 @@ export interface Requisition {
   source: string;
   source_ref: string;
   ta_email: string;
+  /** TA name for this position alone, over the shop's TA (see taOf); "" = follow the shop. */
+  ta_name: string;
   status: Status;
   status_date: LocalDate | null;
   offer_id: string;
@@ -108,7 +115,7 @@ export interface Branch {
   am: string;
   /** Regional Manager name from HR's Zone sheet; empty = not set. */
   rm: string;
-  /** The shop as HR's database names it, e.g. "ID1060 : BB-Emquartier-Sukhumvit"; empty = not set. */
+  /** The shop as HR names it (Name_ of HR's Zone sheet), e.g. "ID 105_Studio 7_Central_Khonkaen"; empty = not set. */
   full_name: string;
   /** The TA who recruits for the shop, by name as in HR's database (e.g. "Chuthathip"); empty = not set. */
   ta: string;

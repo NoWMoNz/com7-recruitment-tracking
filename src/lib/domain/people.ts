@@ -56,23 +56,28 @@ export function peopleOptions(items: (People & { taName?: string })[]): PeopleOp
 }
 
 /**
- * The shop as every page and export names it: HR's full name ("ID1060 : BB-Emquartier-Sukhumvit"); a shop
- * without one gets the same pattern from its code and name, and a code missing from Branches is "ID<code>".
+ * The shop as every page and export names it: HR's full name ("ID 105_Studio 7_Central_Khonkaen", the Name_
+ * column of HR's Zone sheet); a shop without one gets "ID <code>_<name>", a code missing from Branches "ID <code>".
  */
 export function branchLabel(code: string, b: Pick<Branch, "branch_name" | "full_name"> | undefined): string {
   const full = (b?.full_name ?? "").trim();
   if (full) return full;
   const name = (b?.branch_name ?? "").trim();
-  return name && name !== code ? `ID${code} : ${name}` : `ID${code}`;
+  return name && name !== code ? `ID ${code}_${name}` : `ID ${code}`;
 }
 
 /**
- * The TA a figure is shown and filtered under: the shop's TA from HR's database when it has one, otherwise
- * the requisition's owner (by account name). `ta` is the key (lower case), `taName` the label. Who may edit
- * a requisition is still decided by its owner email, not by this.
+ * The TA a figure is shown and filtered under: the TA name set on the position itself (`positionTa`), else
+ * the shop's TA from HR's database, else the requisition's owner (by account name). `ta` is the key
+ * (lower case), `taName` the label. Who may edit a requisition is still decided by its owner email, not by this.
  */
-export function taOf(b: Pick<Branch, "ta"> | undefined, ownerEmail: string, nameOf: (email: string) => string | undefined): { ta: string; taName: string } {
-  const named = (b?.ta ?? "").trim();
+export function taOf(
+  b: Pick<Branch, "ta"> | undefined,
+  ownerEmail: string,
+  nameOf: (email: string) => string | undefined,
+  positionTa = "",
+): { ta: string; taName: string } {
+  const named = positionTa.trim() || (b?.ta ?? "").trim();
   if (named) return { ta: normalizeEmail(named), taName: named };
   const email = normalizeEmail(ownerEmail ?? "");
   return { ta: email, taName: email ? nameOf(email) || email : "" };
@@ -102,8 +107,9 @@ export function peopleOfBranch(b: Pick<Branch, "am" | "rm"> | undefined): { am: 
 export interface BranchHead {
   am: string;
   rm: string;
-  /** The branch's TA (see branchTaOf), normalized; "" when unknown. */
+  /** The account the branch belongs to (see branchTaOf), normalized; "" when unknown. */
   taEmail: string;
+  /** The shop's TA as shown: its name from HR's database, else that account's name. */
   taName: string;
   /** Not-closed positions of the branch, and how many each TA (normalized email) owns. */
   open: number;
@@ -146,15 +152,8 @@ export function branchHeads(codes: string[], branches: Branch[], assignments: Re
     }
     const taEmail = branchTaOf(code, rules, reqs);
     const only = rules.length === 1 && !rules[0].position_group.trim() ? normalizeEmail(rules[0].ta_email) : "";
-    out[code] = { ...peopleOfBranch(branchBy.get(code)), taEmail, taName: taEmail ? nameOf.get(taEmail) || taEmail : "", open, owned, ruleOnlyFor: only, known: branchBy.has(code) };
+    const shopTa = (branchBy.get(code)?.ta ?? "").trim();
+    out[code] = { ...peopleOfBranch(branchBy.get(code)), taEmail, taName: shopTa || (taEmail ? nameOf.get(taEmail) || taEmail : ""), open, owned, ruleOnlyFor: only, known: branchBy.has(code) };
   }
   return out;
-}
-
-/** What handing the branch to `taEmail` would do: how many positions move, and whether anything changes at all. */
-export function handOverPreview(head: BranchHead, taEmail: string): { moving: number; changes: boolean } {
-  const ta = normalizeEmail(taEmail);
-  if (!ta) return { moving: 0, changes: false };
-  const moving = head.open - (head.owned[ta] ?? 0);
-  return { moving, changes: moving > 0 || head.ruleOnlyFor !== ta };
 }

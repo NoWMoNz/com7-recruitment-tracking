@@ -59,7 +59,7 @@ describe("manpowerGaps", () => {
   test("counts per position what HR is short of and no open requisition covers", () => {
     // SALES short 3 with 1 open -> 2 uncovered; SM short 1 with none open -> 1 uncovered.
     const [a] = gaps([line("A", "SALES", 4, 1), line("A", "SM", 1, 0)]);
-    expect(a).toMatchObject({ branchName: "IDA : สาขา A", short: 4, gap: 3 });
+    expect(a).toMatchObject({ branchName: "ID A_สาขา A", short: 4, gap: 3 });
   });
 
   test("a position opened more than it is short never cancels another position's gap", () => {
@@ -70,7 +70,7 @@ describe("manpowerGaps", () => {
 
   test("leaves out branches that are fully covered, full or over, and orders by gap", () => {
     const result = gaps([line("A", "SALES", 1, 0), line("B", "SALES", 3, 0)]);
-    expect(result.map((g) => g.branchName)).toEqual(["IDB : สาขา B"]); // A is short 1 with 1 open
+    expect(result.map((g) => g.branchName)).toEqual(["ID B_สาขา B"]); // A is short 1 with 1 open
   });
 });
 

@@ -149,7 +149,7 @@ export function buildTrackingRows(
       tatResult: tatResult(tat, offer !== null, sla),
       agingBand: offer ? null : agingBand(tat, data.settings.agingBands),
       taEmail: r.ta_email,
-      ...taOf(b, r.ta_email, (e) => users.get(e)?.name),
+      ...taOf(b, r.ta_email, (e) => users.get(e)?.name, r.ta_name),
       offerName: offer ? `${offer.title}${offer.first_name} ${offer.last_name}`.trim() : null,
       offerDate: offer?.offer_date ?? null,
       offerChannel: offer?.sourcing_channel ?? null,

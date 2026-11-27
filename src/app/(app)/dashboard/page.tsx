@@ -77,7 +77,7 @@ async function DashboardContent() {
     .filter((r) => r.status === "Hired" && r.closed_at?.startsWith(month))
     .flatMap((r) => {
       const b = branchByCode.get(r.branch_code);
-      return b && inScope(user, b) ? [{ region: b.region || "ไม่ระบุ", bu: buOf(b), ...peopleOfBranch(b), ta: taOf(b, r.ta_email, () => undefined).ta }] : [];
+      return b && inScope(user, b) ? [{ region: b.region || "ไม่ระบุ", bu: buOf(b), ...peopleOfBranch(b), ta: taOf(b, r.ta_email, () => undefined, r.ta_name).ta }] : [];
     });
 
   const turndownRegions = turndowns
@@ -85,7 +85,7 @@ async function DashboardContent() {
     .flatMap((t) => {
       const r = requisitions.find((x) => x.id === t.req_id);
       const b = r && branchByCode.get(r.branch_code);
-      return b && r && inScope(user, b) ? [{ region: b.region || "ไม่ระบุ", bu: buOf(b), ...peopleOfBranch(b), ta: taOf(b, r.ta_email, () => undefined).ta }] : [];
+      return b && r && inScope(user, b) ? [{ region: b.region || "ไม่ระบุ", bu: buOf(b), ...peopleOfBranch(b), ta: taOf(b, r.ta_email, () => undefined, r.ta_name).ta }] : [];
     });
 
   // Looking ahead: resignations still to take effect, and how Offers fared.

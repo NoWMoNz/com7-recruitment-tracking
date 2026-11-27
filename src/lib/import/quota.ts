@@ -1,3 +1,4 @@
+import { isCountedPosition } from "../domain/counted-positions";
 import type { Branch, ImportInitial, LocalDate, Position, QuotaLine } from "@/lib/domain/types";
 
 /** One line of the "All" sheet in HR's "Quota Branch" report. A line with no position is the branch total. */
@@ -25,7 +26,18 @@ export interface QuotaImport {
   warnings: string[];
   /** Quota / Actual of every position line that has a code, closed shops included (the page decides what to show). */
   quota: QuotaLine[];
-  summary: { branches: number; positions: number; openings: number; shortRows: number; over: number; closedBranches: number; /** Missing people of closed shops, left out. */ closedOpenings: number };
+  summary: {
+    branches: number;
+    positions: number;
+    openings: number;
+    shortRows: number;
+    over: number;
+    closedBranches: number;
+    /** Missing people of closed shops, left out. */
+    closedOpenings: number;
+    /** Missing people of positions left out of the counts (see UNCOUNTED_POSITIONS), left out. */
+    uncountedOpenings: number;
+  };
 }
 
 const CLOSED_MARK = /\s*\(\s*ปิด\s*(\d{1,2})\s*\/\s*(\d{1,2})\s*\/\s*(\d{2,4})\s*\)\s*$/;
@@ -59,14 +71,69 @@ export function branchName(shop: string): string {
 
 const MONTHS: Record<string, number> = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 };
 
-/** Report date written in the file name, e.g. "Quota Branch 11 Nov 2026.xls" -> "2026-11-11". */
+/**
+ * Report date written in the file name: "Quota Branch 11 Nov 2026.xls" or "Quota Branch 27.11.2026.xls"
+ * (day.month.year, also with - or _; a Buddhist-era year such as 2569 is converted).
+ */
 export function reportDateFromName(name: string): LocalDate | null {
-  const m = /(\d{1,2})\s+([A-Za-z]{3})[a-z]*\s+(\d{4})/.exec(name);
-  if (!m) return null;
-  const month = MONTHS[m[2].toLowerCase()];
-  const day = Number(m[1]);
-  if (!month || day < 1 || day > 31) return null;
-  return `${m[3]}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+  const iso = (y: number, month: number, day: number): LocalDate | null => {
+    if (y > 2400) y -= 543;
+    const dt = new Date(Date.UTC(y, month - 1, day));
+    if (dt.getUTCFullYear() !== y || dt.getUTCMonth() !== month - 1 || dt.getUTCDate() !== day) return null;
+    return `${y}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+  };
+  const named = /(\d{1,2})\s+([A-Za-z]{3})[a-z]*\s+(\d{4})/.exec(name);
+  if (named) {
+    const month = MONTHS[named[2].toLowerCase()];
+    return month ? iso(Number(named[3]), month, Number(named[1])) : null;
+  }
+  const numeric = /(?<!\d)(\d{1,2})[._-](\d{1,2})[._-](\d{4})(?!\d)/.exec(name);
+  return numeric ? iso(Number(numeric[3]), Number(numeric[2]), Number(numeric[1])) : null;
+}
+
+/** Column numbers (1-based) of the fields read from the "All" sheet. */
+export interface AllColumns {
+  id: number;
+  shop: number;
+  brand: number;
+  bu: number;
+  region: number;
+  province: number;
+  position: number;
+  quota: number;
+  actual: number;
+  vacant: number;
+}
+
+/**
+ * Finds the "All" sheet's columns from its header row (index 0 = column 1). HR's newer reports head both the shop
+ * and the position column "ชื่อตำแหน่งงาน" instead of "Shop" / "Position": the first is the shop, the second the position.
+ */
+export function allColumns(headers: string[]): AllColumns {
+  const at = new Map<string, number[]>();
+  headers.forEach((h, i) => {
+    const k = h.trim();
+    if (k) at.set(k, [...(at.get(k) ?? []), i + 1]);
+  });
+  const twice = at.get("ชื่อตำแหน่งงาน");
+  const pair = twice && twice.length >= 2 ? twice : undefined;
+  const need = (label: string, c: number | undefined) => {
+    if (!c) throw new Error(`ชีต All ไม่มีคอลัมน์ "${label}"`);
+    return c;
+  };
+  const one = (name: string) => need(name, at.get(name)?.[0]);
+  return {
+    id: one("ID"),
+    shop: need("Shop", at.get("Shop")?.[0] ?? pair?.[0]),
+    brand: one("Group เล็ก"),
+    bu: one("Group ใหญ่"),
+    region: one("ภาค"),
+    province: one("จังหวัด"),
+    position: need("Position", at.get("Position")?.[0] ?? pair?.[1]),
+    quota: one("Quota"),
+    actual: one("Actual"),
+    vacant: one("Vacant"),
+  };
 }
 
 /**
@@ -89,6 +156,7 @@ export function convertQuota(
   let shortRows = 0;
   let over = 0;
   let closedOpenings = 0;
+  let uncountedOpenings = 0;
   const closedIds = new Set<string>();
 
   for (const r of rows) {
@@ -129,6 +197,11 @@ export function convertQuota(
     if (!positions.has(code)) positions.set(code, { position_code: code, position_name: name, position_group: "", sla_days: null });
 
     const short = Math.round(r.vacant);
+    // Positions left out of the counts keep their Quota line (shown on the manpower page) but open nothing.
+    if (!isCountedPosition(name)) {
+      if (short > 0) uncountedOpenings += short;
+      continue;
+    }
     if (short < 0) over += -short;
     if (short <= 0) continue;
     if (closedIds.has(id)) {
@@ -161,7 +234,7 @@ export function convertQuota(
     initial,
     quota: quotaLines,
     warnings,
-    summary: { branches: branches.size, positions: positions.size, openings: initial.length, shortRows, over, closedBranches: closedIds.size, closedOpenings },
+    summary: { branches: branches.size, positions: positions.size, openings: initial.length, shortRows, over, closedBranches: closedIds.size, closedOpenings, uncountedOpenings },
   };
 }
 

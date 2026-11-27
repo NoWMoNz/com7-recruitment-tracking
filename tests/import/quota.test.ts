@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { branchName, closedDate, codesFromSummary, convertQuota, peopleFromZone, reportDateFromName, type QuotaRow } from "@/lib/import/quota";
+import { allColumns, branchName, closedDate, codesFromSummary, convertQuota, peopleFromZone, reportDateFromName, type QuotaRow } from "@/lib/import/quota";
 
 const row = (p: Partial<QuotaRow>): QuotaRow => ({
   id: "103",
@@ -37,6 +37,22 @@ describe("helpers", () => {
     expect(reportDateFromName("Quota Branch 11 Nov 2026.xls")).toBe("2026-11-11");
     expect(reportDateFromName("Quota Branch 3 September 2026.xlsx")).toBe("2026-09-03");
     expect(reportDateFromName("quota.xlsx")).toBeNull();
+  });
+
+  it("reads a day.month.year date from the file name, Buddhist year too", () => {
+    expect(reportDateFromName("Quota Branch 27.11.2026.xls")).toBe("2026-11-27");
+    expect(reportDateFromName("Quota Branch 3-9-2026.xlsx")).toBe("2026-09-03");
+    expect(reportDateFromName("Quota Branch 27.11.2569.xlsx")).toBe("2026-11-27");
+    expect(reportDateFromName("Quota Branch 31.02.2026.xlsx")).toBeNull(); // not a real day
+  });
+
+  it("finds the All sheet's columns under both header layouts", () => {
+    const old = ["ID", "Shop", "Group เล็ก", "Group ใหญ่", "ภาค", "จังหวัด", "Position", "Quota", "Actual", "Vacant"];
+    expect(allColumns(old)).toEqual({ id: 1, shop: 2, brand: 3, bu: 4, region: 5, province: 6, position: 7, quota: 8, actual: 9, vacant: 10 });
+    // Since the 27.11.2026 report, shop and position are both headed "ชื่อตำแหน่งงาน" (the second with trailing spaces).
+    const now = ["ID", "ชื่อตำแหน่งงาน", "Group เล็ก", "Group ใหญ่", "ภาค", "จังหวัด", "ชื่อตำแหน่งงาน   ", "Quota", "Actual", "Vacant"];
+    expect(allColumns(now)).toMatchObject({ shop: 2, position: 7 });
+    expect(() => allColumns(["ID", "ชื่อตำแหน่งงาน", "Group เล็ก", "Group ใหญ่", "ภาค", "จังหวัด", "Quota", "Actual", "Vacant"])).toThrow('ไม่มีคอลัมน์ "Shop"');
   });
 
   it("takes position codes from indented lines only", () => {
@@ -135,8 +151,35 @@ describe("convertQuota", () => {
       "103:PIA:2026-11-11:Vacancy",
       "105:PIA:2026-11-11:Vacancy",
     ]);
-    expect(out.summary).toEqual({ branches: 2, positions: 3, openings: 3, shortRows: 2, over: 2, closedBranches: 0, closedOpenings: 0 });
+    expect(out.summary).toEqual({ branches: 2, positions: 3, openings: 3, shortRows: 2, over: 2, closedBranches: 0, closedOpenings: 0, uncountedOpenings: 0 });
     expect(out.warnings).toEqual([]);
+  });
+
+  it("PIA BTB Dedicate and Bilateral Student keep their Quota line but open no vacancies and count in no total", () => {
+    const withUncounted = new Map([
+      ...codes,
+      ["PIA BTB Dedicate", "PIA BTB"],
+      ["PIA BTB Dedicate (1 ปี)", "PIA BTB (1 ปี)"],
+      ["Bilateral Student (ทวิภาคี)", "PIA-4"],
+    ]);
+    const out = convertQuota(
+      [
+        row({ position: "PIA", quota: 3, actual: 2, vacant: 1 }),
+        row({ position: "PIA BTB Dedicate", quota: 4, actual: 2, vacant: 2 }),
+        row({ position: "PIA BTB Dedicate (1 ปี)", quota: 1, actual: 0, vacant: 1 }),
+        row({ position: "Bilateral Student (ทวิภาคี)  ", quota: 0, actual: 3, vacant: -3 }),
+      ],
+      withUncounted,
+      "2026-11-27",
+    );
+    expect(out.quota.map((l) => [l.position_code, l.quota, l.actual])).toEqual([
+      ["PIA", 3, 2],
+      ["PIA BTB", 4, 2],
+      ["PIA BTB (1 ปี)", 1, 0],
+      ["PIA-4", 0, 3],
+    ]);
+    expect(out.initial.map((i) => i.position_code)).toEqual(["PIA"]);
+    expect(out.summary).toMatchObject({ openings: 1, shortRows: 1, over: 0, uncountedOpenings: 3 });
   });
 
   it("skips positions it has no code for and says so", () => {

@@ -1,4 +1,5 @@
 import type { RecruiterAssignment } from "@/lib/repo/types";
+import { isCountedPosition } from "./counted-positions";
 import { branchLabel, branchTaOf, matchesPeople, peopleOfBranch, taOf, type PeopleFilter } from "./people";
 import { inScope, normalizeEmail } from "./permissions";
 import { buOf, ON_PROCESS, type Branch, type LocalDate, type Position, type QuotaLine, type Requisition, type User } from "./types";
@@ -11,6 +12,8 @@ export type OpenMatch = "match" | "fewer" | "more";
 export interface ManpowerPosition {
   positionCode: string;
   positionName: string;
+  /** False for a position left out of the counts (see UNCOUNTED_POSITIONS): shown, but short / over are 0 and the branch totals skip it. */
+  counted: boolean;
   quota: number;
   /** People on the payroll in HR's report. */
   hrActual: number;
@@ -40,6 +43,7 @@ export interface ManpowerRow {
   /** TA key and name the branch is shown and filtered under (see taOf). */
   ta: string;
   taName: string;
+  /** Totals over the counted positions only. */
   quota: number;
   hrActual: number;
   offers: number;
@@ -62,6 +66,8 @@ export interface ManpowerFilter extends PeopleFilter {
 
 export const MANPOWER_STATUS_LABEL: Record<ManpowerStatus, string> = { short: "ขาด", over: "เกิน", full: "ครบ" };
 export const OPEN_MATCH_LABEL: Record<OpenMatch, string> = { match: "ตรงกัน", fewer: "เปิดไม่ครบ", more: "เปิดเกิน" };
+/** Shown in place of a status for a position left out of the counts. */
+export const UNCOUNTED_LABEL = "ไม่นับรวม";
 
 const UNKNOWN_REGION = "ไม่ระบุ";
 const statusOf = (short: number, over: number): ManpowerStatus => (short > 0 ? "short" : over > 0 ? "over" : "full");
@@ -106,12 +112,16 @@ export function buildManpowerRows(
       .map((l) => {
         const offers = offered.get(`${code}|${l.position_code}`) ?? 0;
         const actual = l.actual + offers;
-        const short = Math.max(0, l.quota - actual);
-        const over = Math.max(0, actual - l.quota);
         const o = open.get(`${code}|${l.position_code}`) ?? 0;
+        const name = positionName.get(l.position_code) || l.position_code;
+        const counted = isCountedPosition(name);
+        // An uncounted position keeps its numbers for display, but is never short or over.
+        const short = counted ? Math.max(0, l.quota - actual) : 0;
+        const over = counted ? Math.max(0, actual - l.quota) : 0;
         return {
           positionCode: l.position_code,
-          positionName: positionName.get(l.position_code) || l.position_code,
+          positionName: name,
+          counted,
           quota: l.quota,
           hrActual: l.actual,
           offers,
@@ -123,8 +133,9 @@ export function buildManpowerRows(
           match: matchOf(o, short),
         };
       })
-      .sort((a, b) => b.short - a.short || a.positionName.localeCompare(b.positionName, "th"));
-    const sum = (k: "quota" | "hrActual" | "offers" | "actual" | "short" | "over" | "open") => positions.reduce((n, p) => n + p[k], 0);
+      // Uncounted positions last, under the ones that make up the totals.
+      .sort((a, b) => Number(b.counted) - Number(a.counted) || b.short - a.short || a.positionName.localeCompare(b.positionName, "th"));
+    const sum = (k: "quota" | "hrActual" | "offers" | "actual" | "short" | "over" | "open") => positions.reduce((n, p) => n + (p.counted ? p[k] : 0), 0);
     const short = sum("short");
     const over = sum("over");
     const taEmail = branchTaOf(code, d.assignments, d.requisitions);

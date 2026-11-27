@@ -12,7 +12,8 @@
  */
 import { basename, dirname, extname, join } from "node:path";
 import ExcelJS from "exceljs";
-import { codesFromSummary, convertQuota, peopleFromZone, reportDateFromName, type QuotaRow, type ZoneRow } from "../src/lib/import/quota";
+import { UNCOUNTED_POSITIONS } from "../src/lib/domain/counted-positions";
+import { allColumns, codesFromSummary, convertQuota, peopleFromZone, reportDateFromName, type QuotaRow, type ZoneRow } from "../src/lib/import/quota";
 import { TABS, type TabName } from "../src/lib/sheets/schema";
 
 type Cell = ExcelJS.CellValue;
@@ -42,14 +43,9 @@ function sheet(book: ExcelJS.Workbook, name: string): ExcelJS.Worksheet {
 
 /** Rows of the "All" sheet, columns found by their header text. */
 function readAll(ws: ExcelJS.Worksheet): QuotaRow[] {
-  const header = new Map<string, number>();
-  ws.getRow(1).eachCell((c, col) => header.set(str(c.value).trim(), col));
-  const col = (name: string) => {
-    const c = header.get(name);
-    if (!c) throw new Error(`ชีต All ไม่มีคอลัมน์ "${name}"`);
-    return c;
-  };
-  const C = { id: col("ID"), shop: col("Shop"), brand: col("Group เล็ก"), bu: col("Group ใหญ่"), region: col("ภาค"), province: col("จังหวัด"), position: col("Position"), quota: col("Quota"), actual: col("Actual"), vacant: col("Vacant") };
+  const headers: string[] = [];
+  ws.getRow(1).eachCell({ includeEmpty: true }, (c, col) => (headers[col - 1] = str(c.value)));
+  const C = allColumns(Array.from(headers, (h) => h ?? ""));
   const rows: QuotaRow[] = [];
   for (let r = 2; r <= ws.rowCount; r++) {
     const row = ws.getRow(r);
@@ -139,7 +135,7 @@ async function main() {
   const opt = (k: string) => args.find((a) => a.startsWith(`--${k}=`))?.slice(k.length + 3);
   if (!input) throw new Error('ระบุไฟล์: pnpm quota:import "Quota Branch 11 Nov 2026.xlsx"');
   if (extname(input).toLowerCase() === ".xls") {
-    throw new Error("ไฟล์ .xls (Excel รุ่นเก่า) อ่านไม่ได้ — เปิดใน Excel แล้ว File > Save As เป็น .xlsx ก่อน แล้วรันใหม่กับไฟล์ .xlsx");
+    throw new Error("ไฟล์ .xls (Excel รุ่นเก่า) อ่านไม่ได้ — เปิดใน Excel แล้ว File > Save As เป็น .xlsx ก่อน แล้วรันใหม่กับไฟล์ .xlsx (ใช้ชื่อเดิม เช่น Quota Branch 27.11.2026.xlsx เพื่อให้อ่านวันที่ได้)");
   }
 
   const date = opt("date") ?? reportDateFromName(basename(input));
@@ -173,7 +169,8 @@ async function main() {
   console.log(`AM/RM           ${named} สาขามีชื่อ จาก ${s.branches}`);
   console.log(`Positions       ${s.positions} ตำแหน่ง`);
   console.log(`Quota           ${result.quota.length} บรรทัด (สาขา × ตำแหน่ง)
-Import_Initial  ${s.openings} อัตราที่ขาด (จาก ${s.shortRows} คู่สาขา-ตำแหน่ง) · ตำแหน่งที่เกินโควต้า ${s.over} อัตรา ไม่ถูกนำเข้า · ร้านที่ปิดแล้ว ${s.closedOpenings} อัตรา ไม่ถูกนำเข้า`);
+Import_Initial  ${s.openings} อัตราที่ขาด (จาก ${s.shortRows} คู่สาขา-ตำแหน่ง) · ตำแหน่งที่เกินโควต้า ${s.over} อัตรา ไม่ถูกนำเข้า · ร้านที่ปิดแล้ว ${s.closedOpenings} อัตรา ไม่ถูกนำเข้า
+                ตำแหน่งที่ไม่นับรวม (${UNCOUNTED_POSITIONS.join(", ")}) ขาด ${s.uncountedOpenings} อัตรา ไม่ถูกนำเข้า`);
   for (const w of [...summary.warnings, ...zone.warnings, ...result.warnings]) console.warn(`! ${w}`);
   console.log(`บันทึกแล้ว: ${target}`);
 }

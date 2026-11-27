@@ -17,7 +17,13 @@ const branches = [
 ];
 const ploy = user({ email: "ploy@example.com" });
 const assignments = [{ branch_code: "A", position_group: "", ta_email: "ploy@example.com" }];
-const data = (quota: QuotaLine[], requisitions: Requisition[] = []) => ({ quota, requisitions, branches, positions, assignments, users: [ju, ploy] });
+const allPositions = [
+  ...positions,
+  { position_code: "PIA BTB", position_name: "PIA BTB Dedicate", position_group: "", sla_days: null },
+  { position_code: "PIA BTB (1 ปี)", position_name: "PIA BTB Dedicate (1 ปี)", position_group: "", sla_days: null },
+  { position_code: "PIA-4", position_name: "Bilateral Student (ทวิภาคี)", position_group: "", sla_days: null },
+];
+const data = (quota: QuotaLine[], requisitions: Requisition[] = []) => ({ quota, requisitions, branches, positions: allPositions, assignments, users: [ju, ploy] });
 const sales = (id: string, p: Partial<Requisition> = {}) => req({ id, branch_code: "A", position_code: "SALES", ...p });
 
 describe("buildManpowerRows", () => {
@@ -93,6 +99,34 @@ describe("buildManpowerRows", () => {
     expect(buildManpowerRows(data(quota), north, TODAY).rows.map((r) => r.branchCode)).toEqual(["B"]);
   });
 
+});
+
+describe("positions left out of the counts", () => {
+  const quota = [line("A", "SALES", 3, 1), line("A", "PIA BTB", 4, 1), line("A", "PIA BTB (1 ปี)", 1, 3), line("A", "PIA-4", 0, 2)];
+
+  test("are listed with their own Quota / Actual, last, but never short or over", () => {
+    const [a] = buildManpowerRows(data(quota), ju, TODAY).rows;
+    expect(a.positions.map((p) => [p.positionCode, p.counted, p.quota, p.actual, p.short, p.over])).toEqual([
+      ["SALES", true, 3, 1, 2, 0],
+      ["PIA-4", false, 0, 2, 0, 0],
+      ["PIA BTB", false, 4, 1, 0, 0],
+      ["PIA BTB (1 ปี)", false, 1, 3, 0, 0],
+    ]);
+  });
+
+  test("leave the branch totals, its status and the summary", () => {
+    const reqs = [sales("1"), req({ id: "2", branch_code: "A", position_code: "PIA BTB" }), req({ id: "3", branch_code: "A", position_code: "PIA-4", status: "Offer" })];
+    const { rows } = buildManpowerRows(data(quota, reqs), ju, TODAY);
+    expect(rows[0]).toMatchObject({ quota: 3, hrActual: 1, offers: 0, actual: 1, short: 2, over: 0, open: 1, status: "short", match: "fewer" });
+    expect(rows[0].positions.find((p) => p.positionCode === "PIA-4")).toMatchObject({ offers: 1, actual: 3 }); // still shown
+    expect(summarizeManpower(rows)).toMatchObject({ quota: 3, actual: 1, short: 2, over: 0 });
+  });
+
+  test("a branch with only uncounted positions is full with nothing to count", () => {
+    const [a] = buildManpowerRows(data([line("A", "PIA-4", 0, 5)]), ju, TODAY).rows;
+    expect(a).toMatchObject({ quota: 0, actual: 0, short: 0, over: 0, status: "full" });
+    expect(a.positions).toHaveLength(1);
+  });
 });
 
 describe("AM / RM / TA on manpower rows", () => {

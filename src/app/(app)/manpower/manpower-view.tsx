@@ -4,6 +4,7 @@ import { Fragment, useId, useMemo, useState } from "react";
 import { ChevronRight, Download, RotateCcw, Search } from "lucide-react";
 import { hasPeople, PeopleFilters } from "@/components/people-filters";
 import { Dropdown } from "@/components/ui/dropdown";
+import { UNCOUNTED_POSITIONS } from "@/lib/domain/counted-positions";
 import { formatThaiDate } from "@/lib/domain/dates";
 import { peopleOptions, type PeopleFilter } from "@/lib/domain/people";
 import {
@@ -11,6 +12,7 @@ import {
   MANPOWER_STATUS_LABEL,
   OPEN_MATCH_LABEL,
   summarizeManpower,
+  UNCOUNTED_LABEL,
   type ManpowerRow,
   type ManpowerStatus,
   type OpenMatch,
@@ -33,6 +35,8 @@ const MATCH_HINT: Record<OpenMatch, string> = {
   fewer: "ระบบเปิดสรรหาน้อยกว่าที่ HR บอกว่าขาด อาจยังเปิดตำแหน่งไม่ครบ",
   more: "ระบบเปิดสรรหามากกว่าที่ HR บอกว่าขาด ตรวจว่ามีตำแหน่งซ้ำหรือค้างอยู่ไหม",
 };
+const UNCOUNTED_CHIP = "bg-black/[0.05] text-muted-foreground";
+const UNCOUNTED_HINT = "แสดงตัวเลขจาก HR แต่ไม่นับรวมใน Quota / Actual / ขาด / เกิน ของสาขา";
 
 function Chip({ className, children, title }: { className: string; children: React.ReactNode; title?: string }) {
   return (
@@ -43,7 +47,7 @@ function Chip({ className, children, title }: { className: string; children: Rea
 }
 
 /** Quota, Actual, short and over cells. Actual counts Offers already made; the note says where the number comes from. */
-function NumberCells({ q, hrActual, offers, actual, short, over, compact }: { q: number; hrActual: number; offers: number; actual: number; short: number; over: number; compact?: boolean }) {
+function NumberCells({ q, hrActual, offers, actual, short, over, compact, counted = true }: { q: number; hrActual: number; offers: number; actual: number; short: number; over: number; compact?: boolean; counted?: boolean }) {
   const pad = compact ? "px-4 py-2.5" : "px-4 py-3";
   return (
     <>
@@ -52,19 +56,22 @@ function NumberCells({ q, hrActual, offers, actual, short, over, compact }: { q:
         {actual}
         {offers > 0 && <span className="block text-[11px] leading-tight whitespace-nowrap text-muted-foreground">HR {hrActual} + Offer {offers}</span>}
       </td>
-      <td className={cn(pad, "text-right tabular-nums", short > 0 && "font-medium text-[#b91c1c]")}>{short}</td>
-      <td className={cn(pad, "text-right tabular-nums")}>{over}</td>
+      {/* An uncounted position is never short or over; a dash says the column does not apply. */}
+      <td className={cn(pad, "text-right tabular-nums", short > 0 && "font-medium text-[#b91c1c]", !counted && "text-muted-foreground")}>{counted ? short : "–"}</td>
+      <td className={cn(pad, "text-right tabular-nums", !counted && "text-muted-foreground")}>{counted ? over : "–"}</td>
     </>
   );
 }
 
-function OpenCell({ open, match, compact }: { open: number; match: OpenMatch; compact?: boolean }) {
+function OpenCell({ open, match, compact, counted = true }: { open: number; match: OpenMatch; compact?: boolean; counted?: boolean }) {
   return (
     <td className={cn("px-4", compact ? "py-2.5" : "py-3")}>
       <span className="mr-2 inline-block min-w-4 text-right tabular-nums">{open}</span>
-      <Chip className={MATCH_CHIP[match]} title={MATCH_HINT[match]}>
-        {OPEN_MATCH_LABEL[match]}
-      </Chip>
+      {counted && (
+        <Chip className={MATCH_CHIP[match]} title={MATCH_HINT[match]}>
+          {OPEN_MATCH_LABEL[match]}
+        </Chip>
+      )}
     </td>
   );
 }
@@ -113,6 +120,7 @@ export function ManpowerView({ rows, closedBranches, reportDate, isAdmin }: { ro
           โควต้าเทียบกับคนจริงของแต่ละสาขา จากรายงานของ HR{reportDate ? ` ณ ${formatThaiDate(reportDate)}` : ""} Actual รวมคนที่ Offer แล้วแต่ยังไม่เริ่มงาน และเทียบกับตำแหน่งที่ยังเปิดสรรหาอยู่ในระบบ
         </p>
         {closedBranches > 0 && <p className="mt-0.5 text-xs text-muted-foreground">ไม่รวมร้านที่ปิดแล้ว {closedBranches} สาขา</p>}
+        <p className="mt-0.5 text-xs text-muted-foreground">ตำแหน่ง {UNCOUNTED_POSITIONS.join(", ")} แสดงในรายตำแหน่ง แต่ไม่นับรวมใน Quota / Actual / ขาด / เกิน</p>
       </header>
 
       {rows.length === 0 ? (
@@ -253,11 +261,17 @@ export function ManpowerView({ rows, closedBranches, reportDate, isAdmin }: { ro
                                 <td className="py-2.5 pr-4 pl-8">
                                   <span className="block border-l-2 border-black/10 pl-3">{p.positionName}</span>
                                 </td>
-                                <NumberCells q={p.quota} hrActual={p.hrActual} offers={p.offers} actual={p.actual} short={p.short} over={p.over} compact />
+                                <NumberCells q={p.quota} hrActual={p.hrActual} offers={p.offers} actual={p.actual} short={p.short} over={p.over} compact counted={p.counted} />
                                 <td className="px-4 py-2.5">
-                                  <Chip className={STATUS_CHIP[p.status]}>{MANPOWER_STATUS_LABEL[p.status]}</Chip>
+                                  {p.counted ? (
+                                    <Chip className={STATUS_CHIP[p.status]}>{MANPOWER_STATUS_LABEL[p.status]}</Chip>
+                                  ) : (
+                                    <Chip className={UNCOUNTED_CHIP} title={UNCOUNTED_HINT}>
+                                      {UNCOUNTED_LABEL}
+                                    </Chip>
+                                  )}
                                 </td>
-                                <OpenCell open={p.open} match={p.match} compact />
+                                <OpenCell open={p.open} match={p.match} compact counted={p.counted} />
                               </tr>
                             ))}
                         </Fragment>

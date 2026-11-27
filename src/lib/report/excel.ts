@@ -3,7 +3,8 @@ import ExcelJS from "exceljs";
 import { STATUS_LABEL } from "@/components/status-badge";
 import { formatThaiDate } from "@/lib/domain/dates";
 import { periodText, wholeMonth, type GroupStat } from "@/lib/domain/report";
-import { MANPOWER_STATUS_LABEL, OPEN_MATCH_LABEL, type ManpowerRow } from "@/lib/domain/manpower";
+import { UNCOUNTED_POSITIONS } from "@/lib/domain/counted-positions";
+import { MANPOWER_STATUS_LABEL, OPEN_MATCH_LABEL, UNCOUNTED_LABEL, type ManpowerRow } from "@/lib/domain/manpower";
 import { RESIGN_STATE_LABEL, type ResignRow } from "@/lib/domain/resign";
 import type { HiredRow } from "@/lib/domain/hired";
 import type { MasterEntity } from "@/lib/domain/master";
@@ -275,7 +276,7 @@ export async function buildManpowerWorkbook(rows: ManpowerRow[]): Promise<{ buff
   const peopleCols = [{ header: "AM", width: 16 }, { header: "RM", width: 16 }, { header: "TA", width: 16 }];
   writeTable(wb, {
     sheet: "รายสาขา",
-    title: `กำลังพลรายสาขา ${rows.length} สาขา`,
+    title: `กำลังพลรายสาขา ${rows.length} สาขา (ไม่นับ ${UNCOUNTED_POSITIONS.join(", ")})`,
     columns: [
       { header: "BU", width: 14 }, { header: "ภาค", width: 20 }, { header: "สาขา", width: 34 },
       { header: "Quota", width: 9 }, { header: "Actual (HR)", width: 12 }, { header: "Offer แล้ว", width: 11 }, { header: "Actual รวม Offer", width: 16 },
@@ -286,14 +287,20 @@ export async function buildManpowerWorkbook(rows: ManpowerRow[]): Promise<{ buff
   });
   writeTable(wb, {
     sheet: "รายตำแหน่ง",
-    title: "กำลังพลรายตำแหน่ง",
+    title: `กำลังพลรายตำแหน่ง (${UNCOUNTED_POSITIONS.join(", ")}: ${UNCOUNTED_LABEL})`,
     columns: [
       { header: "BU", width: 14 }, { header: "ภาค", width: 20 }, { header: "สาขา", width: 34 },
       { header: "ตำแหน่ง", width: 28 }, { header: "Quota", width: 9 }, { header: "Actual (HR)", width: 12 }, { header: "Offer แล้ว", width: 11 }, { header: "Actual รวม Offer", width: 16 },
       { header: "ขาด", width: 8 }, { header: "เกิน", width: 8 },
       { header: "เปิดสรรหาในระบบ", width: 17 }, { header: "เทียบกับระบบ", width: 14 }, ...peopleCols,
     ],
-    rows: rows.flatMap((r) => r.positions.map((p) => [...place(r), p.positionName, p.quota, p.hrActual, p.offers, p.actual, p.short, p.over, p.open, OPEN_MATCH_LABEL[p.match], ...people(r)])),
+    // An uncounted position keeps its HR numbers but has no shortage, surplus or match: "-" and ไม่นับรวม.
+    rows: rows.flatMap((r) =>
+      r.positions.map((p) => [
+        ...place(r), p.positionName, p.quota, p.hrActual, p.offers, p.actual,
+        p.counted ? p.short : "-", p.counted ? p.over : "-", p.open, p.counted ? OPEN_MATCH_LABEL[p.match] : UNCOUNTED_LABEL, ...people(r),
+      ]),
+    ),
   });
   return { buffer: (await wb.xlsx.writeBuffer()) as ArrayBuffer, filename: "recruitment-manpower.xlsx" };
 }

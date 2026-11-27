@@ -1,6 +1,6 @@
 import "server-only";
 import { formatThaiDate, parseUserDate, todayBangkok } from "@/lib/domain/dates";
-import { peopleOptions } from "@/lib/domain/people";
+import { branchLabel, peopleOfBranch, peopleOptions, taOf } from "@/lib/domain/people";
 import { inScope, normalizeEmail } from "@/lib/domain/permissions";
 import {
   byTa,
@@ -113,16 +113,21 @@ export async function loadReport(viewer: User, params: ReportParams): Promise<Re
 
   // Filter choices, limited to what the viewer may see.
   const visibleBranches = branches.filter((b) => inScope(viewer, b));
-  const managers = peopleOptions(visibleBranches.map((b) => ({ am: b.am?.trim() ?? "", rm: b.rm?.trim() ?? "", taEmail: "" })));
+  // TA choices: each shop's TA from HR's database, and the owners of requisitions at shops that have none.
+  const userNameOf = (e: string) => userName.get(e);
+  const managers = peopleOptions([
+    ...visibleBranches.map((b) => ({ ...peopleOfBranch(b), ...taOf(b, "", userNameOf) })),
+    ...requisitions
+      .filter((r) => branchBy.get(r.branch_code) && inScope(viewer, branchBy.get(r.branch_code)!))
+      .map((r) => ({ am: "", rm: "", ...taOf(branchBy.get(r.branch_code), r.ta_email, userNameOf) })),
+  ]);
   const options: FilterOptions = {
     bus: [...new Set(visibleBranches.map(buOf))].sort((a, b) => a.localeCompare(b, "th")),
     regions: [...new Set(visibleBranches.map((b) => b.region || "ไม่ระบุ"))].sort((a, b) => a.localeCompare(b, "th")),
     provinces: [...new Map(visibleBranches.filter((b) => b.province).map((b) => [b.province, { value: b.province, region: b.region }])).values()].sort((a, b) => a.value.localeCompare(b.value, "th")),
-    branches: visibleBranches.map((b) => ({ value: b.branch_code, label: `${b.branch_name} (${b.branch_code})`, bu: buOf(b), region: b.region, province: b.province })).sort((a, b) => a.label.localeCompare(b.label, "th")),
+    branches: visibleBranches.map((b) => ({ value: b.branch_code, label: branchLabel(b.branch_code, b), bu: buOf(b), region: b.region, province: b.province })).sort((a, b) => a.label.localeCompare(b.label, "th")),
     positions: positions.map((p) => ({ value: p.position_code, label: p.position_name })).sort((a, b) => a.label.localeCompare(b.label, "th")),
-    tas: [...new Set(requisitions.filter((r) => r.ta_email && branchBy.get(r.branch_code) && inScope(viewer, branchBy.get(r.branch_code)!)).map((r) => normalizeEmail(r.ta_email)))]
-      .map((e) => ({ value: e, label: nameOf(e) }))
-      .sort((a, b) => a.label.localeCompare(b.label, "th")),
+    tas: managers.tas,
     ams: managers.ams,
     rms: managers.rms,
   };
@@ -154,8 +159,8 @@ export async function loadReport(viewer: User, params: ReportParams): Promise<Re
   const ordered = [...reqs].sort((a, b) => lastActivity(b.id).localeCompare(lastActivity(a.id)) || b.request_date.localeCompare(a.request_date));
   const history: HistoryItem[] = ordered.slice(0, HISTORY_LIMIT).map((r) => ({
     id: r.id,
-    title: `${positionBy.get(r.position_code)?.position_name ?? r.position_code} · ${branchBy.get(r.branch_code)?.branch_name ?? r.branch_code}`,
-    subtitle: `${r.id} · แจ้งสรรหา ${formatThaiDate(r.request_date)} · TA ${nameOf(r.ta_email)} · ที่มา ${r.source || "-"}`,
+    title: `${positionBy.get(r.position_code)?.position_name ?? r.position_code} · ${branchLabel(r.branch_code, branchBy.get(r.branch_code))}`,
+    subtitle: `${r.id} · แจ้งสรรหา ${formatThaiDate(r.request_date)} · TA ${taOf(branchBy.get(r.branch_code), r.ta_email, userNameOf).taName || "ยังไม่มีเจ้าของ"} · ที่มา ${r.source || "-"}`,
     status: r.status,
     entries: (logBy.get(r.id) ?? [])
       .slice()

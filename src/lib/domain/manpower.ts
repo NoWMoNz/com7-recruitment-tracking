@@ -1,5 +1,5 @@
 import type { RecruiterAssignment } from "@/lib/repo/types";
-import { branchTaOf, matchesPeople, peopleOfBranch, type PeopleFilter } from "./people";
+import { branchLabel, branchTaOf, matchesPeople, peopleOfBranch, taOf, type PeopleFilter } from "./people";
 import { inScope, normalizeEmail } from "./permissions";
 import { buOf, ON_PROCESS, type Branch, type LocalDate, type Position, type QuotaLine, type Requisition, type User } from "./types";
 
@@ -32,10 +32,13 @@ export interface ManpowerRow {
   bu: string;
   region: string;
   province: string;
-  /** Area / Regional Manager of the branch and the TA it belongs to (see branchTaOf); "" when not known. */
+  /** Area / Regional Manager of the branch; "" when not known. */
   am: string;
   rm: string;
+  /** The account the branch belongs to (see branchTaOf); "" when not known. */
   taEmail: string;
+  /** TA key and name the branch is shown and filtered under (see taOf). */
+  ta: string;
   taName: string;
   quota: number;
   hrActual: number;
@@ -127,13 +130,13 @@ export function buildManpowerRows(
     const taEmail = branchTaOf(code, d.assignments, d.requisitions);
     rows.push({
       branchCode: code,
-      branchName: b.branch_name || code,
+      branchName: branchLabel(code, b),
       bu: buOf(b),
       region: b.region || UNKNOWN_REGION,
       province: b.province,
       ...peopleOfBranch(b),
       taEmail,
-      taName: taEmail ? userName.get(taEmail) || taEmail : "",
+      ...taOf(b, taEmail, (e) => userName.get(e)),
       quota: sum("quota"),
       hrActual: sum("hrActual"),
       offers: sum("offers"),

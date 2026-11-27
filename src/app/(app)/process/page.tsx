@@ -3,6 +3,7 @@ import { ExportLink } from "@/components/export-link";
 import { PageHeader } from "@/components/page-header";
 import { getSessionUser } from "@/lib/auth/session-user";
 import { formatThaiDate } from "@/lib/domain/dates";
+import { branchLabel } from "@/lib/domain/people";
 import { inScope } from "@/lib/domain/permissions";
 import { IMPORT_TABS } from "@/lib/processor/run";
 import { getRepo } from "@/lib/repo";
@@ -55,7 +56,7 @@ async function ProcessContent() {
         id: o.id,
         branchCode: r.branch_code,
         positionCode: r.position_code,
-        label: `${o.title}${o.first_name} ${o.last_name} · ${positionBy.get(r.position_code)?.position_name ?? r.position_code} · ${branchBy.get(r.branch_code)?.branch_name ?? r.branch_code} · Offer ${formatThaiDate(o.offer_date)}`,
+        label: `${o.title}${o.first_name} ${o.last_name} · ${positionBy.get(r.position_code)?.position_name ?? r.position_code} · ${branchLabel(r.branch_code, branchBy.get(r.branch_code))} · Offer ${formatThaiDate(o.offer_date)}`,
       };
     });
 

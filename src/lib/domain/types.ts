@@ -108,6 +108,10 @@ export interface Branch {
   am: string;
   /** Regional Manager name from HR's Zone sheet; empty = not set. */
   rm: string;
+  /** The shop as HR's database names it, e.g. "ID1060 : BB-Emquartier-Sukhumvit"; empty = not set. */
+  full_name: string;
+  /** The TA who recruits for the shop, by name as in HR's database (e.g. "Chuthathip"); empty = not set. */
+  ta: string;
 }
 
 export interface Position {

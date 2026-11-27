@@ -117,7 +117,7 @@ export function HiredView({ rows }: { rows: HiredRow[] }) {
                     <td className="px-4 py-3">
                       <span className="block text-sm">{r.positionName}</span>
                       <span className="block text-muted-foreground">
-                        {r.branchCode} {r.branchName} · {r.bu} · {r.region}
+                        {r.branchName} · {r.bu} · {r.region}
                       </span>
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap tabular-nums">{formatThaiDate(r.startDate)}</td>

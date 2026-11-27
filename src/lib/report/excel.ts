@@ -23,16 +23,6 @@ interface Table {
 
 const pct = (a: number, b: number) => (b ? Math.round((a / b) * 100) : null);
 
-/**
- * The shop as HR writes it: "ID 1060_BB_Emquartier_Sukhumvit". The import keeps only the name with spaces
- * (it drops "ID" and turns "_" into spaces), so every space becomes "_" again. A requisition whose shop is
- * gone from Branches carries its code as the name; that is just "ID <code>".
- */
-export function exportBranchName(code: string, name: string): string {
-  const clean = name.trim().replace(/\s+/g, "_");
-  return clean && clean !== code ? `ID ${code}_${clean}` : `ID ${code}`;
-}
-
 /** Statuses as the export writes them: as on screen, except "Offer แล้ว", which HR writes as plain "Offer". */
 const EXPORT_STATUS_LABEL: Record<keyof typeof STATUS_LABEL, string> = { ...STATUS_LABEL, Offer: "Offer" };
 
@@ -76,7 +66,7 @@ function tablesFor(r: ReportResult): Table[] {
             { header: "ตำแหน่ง", width: 22 }, { header: "TA", width: 16 }, { header: "AM", width: 16 }, { header: "RM", width: 16 }, { header: "Sourcing Channel", width: 16 }, { header: "วันที่ Offer", width: 12 },
             { header: "วันเริ่มงาน", width: 12 }, { header: "TAT", width: 7 }, { header: "Result", width: 10 },
           ],
-          rows: w.hires.map((h) => [formatThaiDate(h.hiredAt), h.employeeId, h.name, h.region, exportBranchName(h.branchCode, h.branchName), h.positionName, h.taName, h.am, h.rm, h.channel, formatThaiDate(h.offerDate), formatThaiDate(h.startDate), h.tat, h.meet ? "Meet" : "Not Meet"]),
+          rows: w.hires.map((h) => [formatThaiDate(h.hiredAt), h.employeeId, h.name, h.region, h.branchName, h.positionName, h.taName, h.am, h.rm, h.channel, formatThaiDate(h.offerDate), formatThaiDate(h.startDate), h.tat, h.meet ? "Meet" : "Not Meet"]),
         },
         groupTable("ตาม TA", `${title} แยกตาม TA`, "TA", w.groups.taName),
         groupTable("ตาม AM", `${title} แยกตาม AM`, "AM", w.groups.am),
@@ -95,7 +85,7 @@ function tablesFor(r: ReportResult): Table[] {
             { header: "วันที่ Turndown", width: 14 }, { header: "ชื่อพนักงาน", width: 26 }, { header: "สาขา", width: 34 }, { header: "ตำแหน่ง", width: 22 }, { header: "TA", width: 16 },
             { header: "วันที่ Offer", width: 12 }, { header: "หลัง Offer (วัน)", width: 15 }, { header: "Sourcing Channel", width: 16 }, { header: "เหตุผล", width: 40 },
           ],
-          rows: r.turndowns.rows.map((t) => [formatThaiDate(t.date), t.name, exportBranchName(t.branchCode, t.branchName), t.positionName, t.taName, formatThaiDate(t.offerDate), t.daysAfterOffer, t.channel, t.reason]),
+          rows: r.turndowns.rows.map((t) => [formatThaiDate(t.date), t.name, t.branchName, t.positionName, t.taName, formatThaiDate(t.offerDate), t.daysAfterOffer, t.channel, t.reason]),
         },
       ];
     case "history":
@@ -144,10 +134,11 @@ export async function buildResignationsWorkbook(rows: ResignRow[]): Promise<{ bu
       { header: "รหัสพนักงาน", width: 14 }, { header: "ชื่อพนักงาน", width: 26 }, { header: "BU", width: 14 }, { header: "ภาค", width: 20 }, { header: "สาขา", width: 34 },
       { header: "ตำแหน่ง", width: 24 }, { header: "วันที่มีผล", width: 12 }, { header: "สถานะ", width: 14 }, { header: "สถานะตำแหน่ง", width: 16 },
       { header: "ยกเลิกเมื่อ", width: 12 }, { header: "ยกเลิกโดย", width: 18 }, { header: "เหตุผล", width: 40 }, { header: "AM", width: 16 }, { header: "RM", width: 16 },
+      { header: "TA", width: 16 },
     ],
     rows: rows.map((r) => [
-      r.employeeId, r.name, r.bu, r.region, exportBranchName(r.branchCode, r.branchName), r.positionName, formatThaiDate(r.effectiveDate), RESIGN_STATE_LABEL[r.state],
-      r.reqStatus ? EXPORT_STATUS_LABEL[r.reqStatus] : "-", r.cancelledDay, r.cancelledBy, r.cancelNote, r.am || "-", r.rm || "-",
+      r.employeeId, r.name, r.bu, r.region, r.branchName, r.positionName, formatThaiDate(r.effectiveDate), RESIGN_STATE_LABEL[r.state],
+      r.reqStatus ? EXPORT_STATUS_LABEL[r.reqStatus] : "-", r.cancelledDay, r.cancelledBy, r.cancelNote, r.am || "-", r.rm || "-", r.taName || "-",
     ]),
   });
   return { buffer: (await wb.xlsx.writeBuffer()) as ArrayBuffer, filename: "recruitment-resignations.xlsx" };
@@ -175,7 +166,7 @@ export function buildTrackingWorkbook(rows: TrackingRow[]): Built {
         { header: "วันที่ Offer", width: 12 }, { header: "วันเริ่มงาน", width: 12 }, { header: "Sourcing Channel", width: 16 },
       ],
       rows: rows.map((r) => [
-        r.branchCode, exportBranchName(r.branchCode, r.branchName), r.bu, r.region, r.province || "-", r.am || "-", r.rm || "-", r.taName || "-", r.positionName, formatThaiDate(r.requestDate),
+        r.branchCode, r.branchName, r.bu, r.region, r.province || "-", r.am || "-", r.rm || "-", r.taName || "-", r.positionName, formatThaiDate(r.requestDate),
         r.tat, r.offerDate ? (r.tatResult === "Meet" ? "Meet" : "Not Meet") : "-", EXPORT_STATUS_LABEL[r.status], r.offerName ?? "-", formatThaiDate(r.offerDate),
         formatThaiDate(r.offer?.startDate ?? null), r.offerChannel || "-",
       ]),
@@ -195,7 +186,7 @@ export function buildHoldWorkbook(rows: HoldRow[]): Built {
         { header: "TAT ก่อนพัก (วัน)", width: 15 }, { header: "เหตุผล", width: 36 }, { header: "อนุมัติโดย", width: 16 },
       ],
       rows: rows.map((r) => [
-        r.branchCode, exportBranchName(r.branchCode, r.branchName), r.bu, r.region, r.am || "-", r.rm || "-", r.taName || "-", r.positionName, formatThaiDate(r.holdSince), r.daysHeld, r.tatAtHold,
+        r.branchCode, r.branchName, r.bu, r.region, r.am || "-", r.rm || "-", r.taName || "-", r.positionName, formatThaiDate(r.holdSince), r.daysHeld, r.tatAtHold,
         r.reason || "-", r.approvedBy || "-",
       ]),
     },
@@ -213,7 +204,7 @@ export function buildApprovalsWorkbook(rows: ApprovalRow[]): Built {
         { header: "TA", width: 16 }, { header: "เหตุผล", width: 36 }, { header: "วันที่มีผล", width: 12 }, { header: "ขอโดย", width: 16 }, { header: "ขอเมื่อ", width: 12 },
       ],
       rows: rows.map((r) => [
-        r.type === "Cancel" ? "ยกเลิก" : "พัก", r.branchCode, exportBranchName(r.branchCode, r.branchName), r.region, r.positionName, r.taName || "-", r.reason, formatThaiDate(r.effectiveDate),
+        r.type === "Cancel" ? "ยกเลิก" : "พัก", r.branchCode, r.branchName, r.region, r.positionName, r.taName || "-", r.reason, formatThaiDate(r.effectiveDate),
         r.requestedBy, formatThaiDate(r.requestedAt.slice(0, 10)),
       ]),
     },
@@ -269,7 +260,7 @@ export async function buildHiredWorkbook(rows: HiredRow[]): Promise<{ buffer: Ar
       { header: "TAT (วัน)", width: 10 }, { header: "Result", width: 10 }, { header: "Sourcing Channel", width: 18 },
     ],
     rows: rows.map((r) => [
-      r.employeeId, r.name, formatThaiDate(r.startDate), r.positionName, r.branchCode, exportBranchName(r.branchCode, r.branchName), r.bu, r.region,
+      r.employeeId, r.name, formatThaiDate(r.startDate), r.positionName, r.branchCode, r.branchName, r.bu, r.region,
       r.am || "-", r.rm || "-", r.taName || "-", formatThaiDate(r.offerDate), r.tat, r.tatResult === "Meet" ? "Meet" : "Not Meet", r.channel || "-",
     ]),
   });
@@ -278,7 +269,7 @@ export async function buildHiredWorkbook(rows: HiredRow[]): Promise<{ buffer: Ar
 
 export async function buildManpowerWorkbook(rows: ManpowerRow[]): Promise<{ buffer: ArrayBuffer; filename: string }> {
   const wb = newWorkbook();
-  const place = (r: ManpowerRow): Cell[] => [r.bu, r.region, exportBranchName(r.branchCode, r.branchName)];
+  const place = (r: ManpowerRow): Cell[] => [r.bu, r.region, r.branchName];
   // Appended at the end so the columns people already know keep their place.
   const people = (r: ManpowerRow): Cell[] => [r.am || "-", r.rm || "-", r.taName || "-"];
   const peopleCols = [{ header: "AM", width: 16 }, { header: "RM", width: 16 }, { header: "TA", width: 16 }];

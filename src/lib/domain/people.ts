@@ -2,14 +2,17 @@ import type { RecruiterAssignment } from "@/lib/repo/types";
 import { normalizeEmail } from "./permissions";
 import type { Branch, Requisition, Status, User } from "./types";
 
-/** Who a figure belongs to: the branch's Area / Regional Manager and the TA who owns it (email, any case). */
+/**
+ * Who a figure belongs to: the branch's Area / Regional Manager and its TA. `ta` is the TA's key (see taOf):
+ * the shop's TA from HR's database, else the owner's email, lower case; "" when nobody.
+ */
 export interface People {
   am: string;
   rm: string;
-  taEmail: string;
+  ta: string;
 }
 
-/** AM / RM / TA filters; empty = any. `ta` is an email in any case. */
+/** AM / RM / TA filters; empty = any. `ta` is a TA key in any case. */
 export interface PeopleFilter {
   am?: string;
   rm?: string;
@@ -28,7 +31,7 @@ export const NOT_CLOSED: readonly Status[] = ["Vacancy", "Offer", "PendingCancel
 export function matchesPeople(x: People, f: PeopleFilter): boolean {
   if (f.am && x.am !== f.am) return false;
   if (f.rm && x.rm !== f.rm) return false;
-  if (f.ta && normalizeEmail(x.taEmail) !== normalizeEmail(f.ta)) return false;
+  if (f.ta && normalizeEmail(x.ta) !== normalizeEmail(f.ta)) return false;
   return true;
 }
 
@@ -42,7 +45,7 @@ export function peopleOptions(items: (People & { taName?: string })[]): PeopleOp
   for (const x of items) {
     if (x.am) ams.add(x.am);
     if (x.rm) rms.add(x.rm);
-    const ta = normalizeEmail(x.taEmail);
+    const ta = normalizeEmail(x.ta);
     if (ta && (!tas.has(ta) || (x.taName && tas.get(ta) === ta))) tas.set(ta, x.taName || ta);
   }
   return {
@@ -50,6 +53,29 @@ export function peopleOptions(items: (People & { taName?: string })[]): PeopleOp
     rms: [...rms].sort(byThai),
     tas: [...tas].map(([value, label]) => ({ value, label })).sort((a, b) => byThai(a.label, b.label)),
   };
+}
+
+/**
+ * The shop as every page and export names it: HR's full name ("ID1060 : BB-Emquartier-Sukhumvit"); a shop
+ * without one gets the same pattern from its code and name, and a code missing from Branches is "ID<code>".
+ */
+export function branchLabel(code: string, b: Pick<Branch, "branch_name" | "full_name"> | undefined): string {
+  const full = (b?.full_name ?? "").trim();
+  if (full) return full;
+  const name = (b?.branch_name ?? "").trim();
+  return name && name !== code ? `ID${code} : ${name}` : `ID${code}`;
+}
+
+/**
+ * The TA a figure is shown and filtered under: the shop's TA from HR's database when it has one, otherwise
+ * the requisition's owner (by account name). `ta` is the key (lower case), `taName` the label. Who may edit
+ * a requisition is still decided by its owner email, not by this.
+ */
+export function taOf(b: Pick<Branch, "ta"> | undefined, ownerEmail: string, nameOf: (email: string) => string | undefined): { ta: string; taName: string } {
+  const named = (b?.ta ?? "").trim();
+  if (named) return { ta: normalizeEmail(named), taName: named };
+  const email = normalizeEmail(ownerEmail ?? "");
+  return { ta: email, taName: email ? nameOf(email) || email : "" };
 }
 
 /**

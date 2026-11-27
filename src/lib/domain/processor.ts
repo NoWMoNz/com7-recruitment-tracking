@@ -1,4 +1,5 @@
 import { formatThaiDate } from "./dates";
+import { branchLabel } from "./people";
 import { TITLES } from "./offer";
 import { slaFor, type AppSettings } from "./settings";
 import { holdDays, computeTat } from "./tat";
@@ -184,7 +185,7 @@ export function planProcessing(input: ProcessorInput): ProcessorPlan {
     s.created++;
     return r;
   };
-  const where = (branch: string, position: string) => `${positions.get(position)?.position_name ?? position} · ${branches.get(branch)?.branch_name ?? branch}`;
+  const where = (branch: string, position: string) => `${positions.get(position)?.position_name ?? position} · ${branchLabel(branch, branches.get(branch))}`;
   /** Common row checks; returns an error message or null. */
   const checkPlace = (branch: string, position: string) =>
     !branches.has(branch) ? `ไม่พบรหัสสาขา "${branch}"` : !positions.has(position) ? `ไม่พบรหัสตำแหน่ง "${position}"` : null;

@@ -104,6 +104,8 @@ export function convertQuota(
         close_date: closedDate(r.shop),
         am: people.get(id)?.am ?? "",
         rm: people.get(id)?.rm ?? "",
+        full_name: "",
+        ta: "",
       });
       if (closedDate(r.shop)) closedIds.add(id);
     } else if (known.region !== r.region.trim() || known.province !== r.province.trim()) {

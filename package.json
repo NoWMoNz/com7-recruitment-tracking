@@ -11,6 +11,7 @@
     "sheet:setup": "tsx --env-file=.env.local scripts/setup-sheet.ts",
     "sheet:seed": "tsx --env-file=.env.local scripts/seed-sheet.ts",
     "quota:import": "tsx scripts/quota-import.ts",
+    "zone:import": "tsx --env-file=.env.local scripts/zone-import.ts",
     "password:hash": "tsx scripts/hash-password.ts"
   },
   "dependencies": {

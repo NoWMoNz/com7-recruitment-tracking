@@ -66,7 +66,8 @@ export interface DashboardSummary extends RowStats {
   /** Rows judged against SLA: Meet, NotMeet (offered late or vacant past SLA) and still within SLA. */
   tat: { meet: number; notMeet: number; inProgress: number };
   regions: ({ name: string } & RowStats)[];
-  tas: ({ email: string; name: string } & RowStats)[];
+  /** Per TA key (see taOf). */
+  tas: ({ key: string; name: string } & RowStats)[];
 }
 
 export function summarize(rows: TrackingRow[]): DashboardSummary {
@@ -75,7 +76,7 @@ export function summarize(rows: TrackingRow[]): DashboardSummary {
   const met = live.filter((r) => r.tatResult === "Meet").length;
 
   const regions = [...bucket(live, (r) => r.region)].map(([name, v]) => ({ name, ...statsOf(v) }));
-  const tas = [...bucket(live, (r) => r.taEmail)].map(([email, v]) => ({ email, name: v[0].taName, ...statsOf(v) }));
+  const tas = [...bucket(live, (r) => r.ta)].map(([key, v]) => ({ key, name: v[0].taName, ...statsOf(v) }));
   const byOpen = (a: { open: number; name: string }, b: { open: number; name: string }) => b.open - a.open || a.name.localeCompare(b.name, "th");
 
   return {
@@ -174,9 +175,9 @@ export function buildTrend(
     const rows = new Map<string, TrendRow>();
     for (const m of monthlyRows(d, reqs, month, today, groupOf)) {
       const { bu, am, rm } = groups.get(m.group ?? "")!;
-      const taEmail = normalizeEmail(m.taEmail);
-      const key = `${m.region}\u0000${m.group}\u0000${taEmail}`;
-      const t = rows.get(key) ?? { region: m.region, bu, am, rm, taEmail, new: 0, offers: 0, closed: 0, cancel: 0, hold: 0, open: 0, tatDays: 0, slaDays: 0 };
+      const ta = normalizeEmail(m.ta);
+      const key = `${m.region}\u0000${m.group}\u0000${ta}`;
+      const t = rows.get(key) ?? { region: m.region, bu, am, rm, ta, new: 0, offers: 0, closed: 0, cancel: 0, hold: 0, open: 0, tatDays: 0, slaDays: 0 };
       t.new += m.new;
       t.offers += m.tatTotal;
       t.closed += m.closed;

@@ -176,7 +176,7 @@ export function HoldView({ rows, bands, ...ctx }: Props) {
                         <span aria-hidden className={cn("absolute inset-y-0 left-0 w-1", BAND_CLASS[bandOf(r)])} />
                         <div className="text-sm font-medium">{r.positionName}</div>
                         <div className="text-xs text-muted-foreground">
-                          {r.branchName} {r.branchCode} · {r.region}
+                          {r.branchName} · {r.region}
                         </div>
                       </td>
                       <td className="px-5 py-3 whitespace-nowrap">

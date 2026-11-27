@@ -7,7 +7,7 @@ import type { TrackingRow } from "@/lib/domain/tracking";
 function row(p: Partial<TrackingRow> & Pick<TrackingRow, "id">): TrackingRow {
   return {
     region: "ภาคกลาง", province: "", bu: "Apple", am: "", rm: "", branchCode: "B1", branchName: "B1", positionName: "Sales", requestDate: "2026-10-02",
-    status: "Vacancy", upcoming: false, tat: 10, tatResult: "InProgress", agingBand: "green", taEmail: "mind@example.com",
+    status: "Vacancy", upcoming: false, tat: 10, tatResult: "InProgress", agingBand: "green", taEmail: "mind@example.com", ta: "mind@example.com",
     taName: "มายด์", offerName: null, offerDate: null, offerChannel: null, offer: null, startOverdue: false, holdDays: 0, slaDays: 30, canEdit: false, version: 1, ...p,
   };
 }
@@ -17,7 +17,7 @@ describe("summarize", () => {
     row({ id: "V1", tat: 46, tatResult: "NotMeet", agingBand: "orange" }),
     row({ id: "V2", tat: 5 }),
     row({ id: "O1", status: "Offer", tat: 12, tatResult: "Meet", agingBand: null }),
-    row({ id: "O2", status: "Offer", tat: 40, tatResult: "NotMeet", agingBand: null, region: "ภาคเหนือ", taEmail: "b@x.com", taName: "บี" }),
+    row({ id: "O2", status: "Offer", tat: 40, tatResult: "NotMeet", agingBand: null, region: "ภาคเหนือ", taEmail: "b@x.com", ta: "b@x.com", taName: "บี" }),
     row({ id: "U1", upcoming: true, tat: 0 }),
   ];
 
@@ -115,8 +115,8 @@ describe("tat split and province stats", () => {
 
 describe("trend", () => {
   const months = [
-    { month: "2026-10", rows: [{ region: "ภาคกลาง", bu: "Apple", am: "ก", rm: "R", taEmail: "mind@example.com", new: 4, offers: 3, closed: 2, cancel: 1, hold: 0, open: 10, tatDays: 90, slaDays: 90 }, { region: "ภาคเหนือ", bu: "BaNANA", am: "ข", rm: "R", taEmail: "ploy@example.com", new: 1, offers: 1, closed: 1, cancel: 0, hold: 1, open: 4, tatDays: 40, slaDays: 30 }] },
-    { month: "2026-11", rows: [{ region: "ภาคกลาง", bu: "Apple", am: "ก", rm: "R", taEmail: "mind@example.com", new: 2, offers: 5, closed: 1, cancel: 0, hold: 0, open: 9, tatDays: 100, slaDays: 150 }] },
+    { month: "2026-10", rows: [{ region: "ภาคกลาง", bu: "Apple", am: "ก", rm: "R", ta: "mind@example.com", new: 4, offers: 3, closed: 2, cancel: 1, hold: 0, open: 10, tatDays: 90, slaDays: 90 }, { region: "ภาคเหนือ", bu: "BaNANA", am: "ข", rm: "R", ta: "ploy@example.com", new: 1, offers: 1, closed: 1, cancel: 0, hold: 1, open: 4, tatDays: 40, slaDays: 30 }] },
+    { month: "2026-11", rows: [{ region: "ภาคกลาง", bu: "Apple", am: "ก", rm: "R", ta: "mind@example.com", new: 2, offers: 5, closed: 1, cancel: 0, hold: 0, open: 9, tatDays: 100, slaDays: 150 }] },
   ];
 
   test("sums every region by default", () => {
@@ -168,7 +168,7 @@ describe("trend", () => {
     // Only one month: nothing to compare with.
     expect(momentum(sumTrend(months, {}).slice(-1))).toMatchObject({ openDelta: null, tatDelta: null, avgTat: 20 });
     // Nothing was open last month: no baseline, so no change is shown.
-    const fresh = [{ month: "2026-10", rows: [] }, { month: "2026-11", rows: [{ region: "ภาคกลาง", bu: "Apple", am: "", rm: "", taEmail: "", new: 996, offers: 0, closed: 0, cancel: 0, hold: 0, open: 996, tatDays: 0, slaDays: 0 }] }];
+    const fresh = [{ month: "2026-10", rows: [] }, { month: "2026-11", rows: [{ region: "ภาคกลาง", bu: "Apple", am: "", rm: "", ta: "", new: 996, offers: 0, closed: 0, cancel: 0, hold: 0, open: 996, tatDays: 0, slaDays: 0 }] }];
     expect(momentum(sumTrend(fresh, {})).openDelta).toBeNull();
     expect(momentum([])).toEqual({ openDelta: null, offers: 0, avgTat: null, avgSla: null, tatDelta: null });
   });

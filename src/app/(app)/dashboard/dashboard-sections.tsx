@@ -530,7 +530,7 @@ export function AttentionCard({ longest, near, offers, totals, onSpot, tab, onTa
               key={r.id}
               row={r}
               onSpot={onSpot}
-              title={`${r.positionName} · ${r.branchCode} ${r.branchName}`}
+              title={`${r.positionName} · ${r.branchName}`}
               sub={`${r.region} · TA ${r.taName || "-"}`}
               trailing={<TatBadge tat={r.tat} band={r.agingBand} />}
             />
@@ -541,7 +541,7 @@ export function AttentionCard({ longest, near, offers, totals, onSpot, tab, onTa
               key={r.id}
               row={r}
               onSpot={onSpot}
-              title={`${r.positionName} · ${r.branchCode} ${r.branchName}`}
+              title={`${r.positionName} · ${r.branchName}`}
               sub={`${r.region} · TA ${r.taName || "-"} · TAT ${r.tat}/${r.slaDays} วัน`}
               trailing={
                 <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-900 tabular-nums">
@@ -557,7 +557,7 @@ export function AttentionCard({ longest, near, offers, totals, onSpot, tab, onTa
               row={r}
               onSpot={onSpot}
               title={`${r.offerName ?? "-"} · ${r.positionName}`}
-              sub={`${r.branchCode} ${r.branchName} · TA ${r.taName || "-"}${r.offerChannel ? ` · ${r.offerChannel}` : ""}`}
+              sub={`${r.branchName} · TA ${r.taName || "-"}${r.offerChannel ? ` · ${r.offerChannel}` : ""}`}
               trailing={
                 <span className={cn("rounded-full px-2.5 py-0.5 text-xs tabular-nums", days > OFFER_STALE_DAYS ? "bg-red-100 font-medium text-[#b91c1c]" : "bg-black/5 text-foreground/70")}>
                   Offer แล้ว {days} วัน

@@ -30,7 +30,7 @@ describe("buildApprovalRows", () => {
   test("pending only, oldest request first, joined with branch/position/requester", () => {
     const rows = buildApprovalRows(data, ju);
     expect(rows.map((r) => r.id)).toEqual(["A2", "A1"]);
-    expect(rows[1]).toMatchObject({ reqId: "R1", branchName: "ลาดพร้าว", positionName: "Sales", requestedBy: "มายด์", type: "Hold", evidenceRef: "local:x" });
+    expect(rows[1]).toMatchObject({ reqId: "R1", branchName: "IDBKK-012 : ลาดพร้าว", positionName: "Sales", requestedBy: "มายด์", type: "Hold", evidenceRef: "local:x" });
   });
 
   test("respects the viewer's scope", () => {

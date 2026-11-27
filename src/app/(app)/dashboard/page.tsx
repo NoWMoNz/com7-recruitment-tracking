@@ -5,7 +5,7 @@ import { offerOutcomes, upcomingResignations } from "@/lib/domain/outlook";
 import { buildResignRows } from "@/lib/domain/resign";
 import { todayBangkok } from "@/lib/domain/dates";
 import { buOf } from "@/lib/domain/types";
-import { peopleOfBranch } from "@/lib/domain/people";
+import { peopleOfBranch, taOf } from "@/lib/domain/people";
 import { inScope } from "@/lib/domain/permissions";
 import { buildApprovalRows, buildHoldRows } from "@/lib/domain/queues";
 import { filtered } from "@/lib/domain/report";
@@ -47,7 +47,7 @@ async function DashboardContent() {
     bu: a.bu,
     am: a.am,
     rm: a.rm,
-    taEmail: a.taEmail,
+    ta: a.ta,
     branchName: a.branchName,
     positionName: a.positionName,
     by: a.requestedBy,
@@ -60,7 +60,7 @@ async function DashboardContent() {
     bu: h.bu,
     am: h.am,
     rm: h.rm,
-    taEmail: h.taEmail,
+    ta: h.ta,
     branchName: h.branchName,
     positionName: h.positionName,
     taName: h.taName,
@@ -77,7 +77,7 @@ async function DashboardContent() {
     .filter((r) => r.status === "Hired" && r.closed_at?.startsWith(month))
     .flatMap((r) => {
       const b = branchByCode.get(r.branch_code);
-      return b && inScope(user, b) ? [{ region: b.region || "ไม่ระบุ", bu: buOf(b), ...peopleOfBranch(b), taEmail: r.ta_email }] : [];
+      return b && inScope(user, b) ? [{ region: b.region || "ไม่ระบุ", bu: buOf(b), ...peopleOfBranch(b), ta: taOf(b, r.ta_email, () => undefined).ta }] : [];
     });
 
   const turndownRegions = turndowns
@@ -85,7 +85,7 @@ async function DashboardContent() {
     .flatMap((t) => {
       const r = requisitions.find((x) => x.id === t.req_id);
       const b = r && branchByCode.get(r.branch_code);
-      return b && r && inScope(user, b) ? [{ region: b.region || "ไม่ระบุ", bu: buOf(b), ...peopleOfBranch(b), taEmail: r.ta_email }] : [];
+      return b && r && inScope(user, b) ? [{ region: b.region || "ไม่ระบุ", bu: buOf(b), ...peopleOfBranch(b), ta: taOf(b, r.ta_email, () => undefined).ta }] : [];
     });
 
   // Looking ahead: resignations still to take effect, and how Offers fared.

@@ -61,6 +61,8 @@ const STATUS_LOG_COLS = cols(
 const defs: [TabName, boolean, ColSpec[]][] = [
   ["Branches", false, cols(
     "branch_code", "branch_name", "brand", "bu", "province", "region", "status", "open_date:d", "close_date:d", "am", "rm",
+    // From HR's shop database (Zone TA file): its full shop name, and the TA who recruits for the shop.
+    "full_name", "ta",
   )],
   ["Positions", false, cols("position_code", "position_name", "position_group", "sla_days:n")],
   ["SourcingChannels", false, cols("channel", "active:b")],

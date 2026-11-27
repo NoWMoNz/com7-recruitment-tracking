@@ -1,5 +1,5 @@
 import { offerEditableUntil } from "./offer";
-import { matchesPeople, peopleOfBranch, type PeopleFilter } from "./people";
+import { branchLabel, matchesPeople, peopleOfBranch, taOf, type PeopleFilter } from "./people";
 import { canEditRequisition, inScope, normalizeEmail } from "./permissions";
 import { slaFor, type AppSettings } from "./settings";
 import { agingBand, computeTat, holdDays, tatResult, type AgingBand, type TatResult } from "./tat";
@@ -44,7 +44,10 @@ export interface TrackingRow {
   tat: number;
   tatResult: TatResult;
   agingBand: AgingBand | null;
+  /** The owner's email: who may edit the row (and the admin's owner picker). */
   taEmail: string;
+  /** TA key and name the row is shown and filtered under (see taOf). */
+  ta: string;
   taName: string;
   offerName: string | null;
   offerDate: LocalDate | null;
@@ -137,7 +140,7 @@ export function buildTrackingRows(
       bu: buOf(b),
       ...peopleOfBranch(b),
       branchCode: r.branch_code,
-      branchName: b?.branch_name || r.branch_code,
+      branchName: branchLabel(r.branch_code, b),
       positionName: position?.position_name || r.position_code,
       requestDate: r.request_date,
       status: r.status,
@@ -146,7 +149,7 @@ export function buildTrackingRows(
       tatResult: tatResult(tat, offer !== null, sla),
       agingBand: offer ? null : agingBand(tat, data.settings.agingBands),
       taEmail: r.ta_email,
-      taName: users.get(normalizeEmail(r.ta_email))?.name || r.ta_email,
+      ...taOf(b, r.ta_email, (e) => users.get(e)?.name),
       offerName: offer ? `${offer.title}${offer.first_name} ${offer.last_name}`.trim() : null,
       offerDate: offer?.offer_date ?? null,
       offerChannel: offer?.sourcing_channel ?? null,

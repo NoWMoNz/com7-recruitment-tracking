@@ -46,7 +46,7 @@ describe("buildResignRows", () => {
 
   test("carries name, BU, place and row number", () => {
     const [r] = buildResignRows(data([resign({ title: "นางสาว", first_name: "อรุณี", last_name: "แสงทอง" })]), ju, TODAY);
-    expect(r).toMatchObject({ rowNumber: 2, employeeId: "E100", name: "นางสาวอรุณี แสงทอง", bu: "Apple", region: "ภาคกลาง", branchName: "ลาดพร้าว", positionName: "Sales" });
+    expect(r).toMatchObject({ rowNumber: 2, employeeId: "E100", name: "นางสาวอรุณี แสงทอง", bu: "Apple", region: "ภาคกลาง", branchName: "IDBKK-012 : ลาดพร้าว", positionName: "Sales" });
   });
 
   test("state: future date is upcoming, today or past is resigned, withdrawn wins over both", () => {

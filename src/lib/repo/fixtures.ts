@@ -4,14 +4,14 @@ import type { Dataset } from "./types";
 /** Demo/test dataset. "Today" for these dates is 17/11/2026. */
 
 const branches: Branch[] = [
-  { branch_code: "BKK-012", branch_name: "เซ็นทรัลลาดพร้าว", brand: "Studio7", bu: "Apple", province: "กรุงเทพฯ", region: "ภาคกลาง", status: "Open", open_date: null, close_date: null, am: "โชคชัย", rm: "ฐกรกฤตย์" },
-  { branch_code: "BKK-045", branch_name: "สยามพารากอน", brand: "BaNANA", bu: "BaNANA", province: "กรุงเทพฯ", region: "ภาคกลาง", status: "Open", open_date: null, close_date: null, am: "สกานต์", rm: "พฤฒิชัย" },
-  { branch_code: "NBI-003", branch_name: "เซ็นทรัลเวสต์เกต", brand: "Studio7", bu: "Apple", province: "นนทบุรี", region: "ภาคกลาง", status: "Open", open_date: null, close_date: null, am: "โชคชัย", rm: "ฐกรกฤตย์" },
-  { branch_code: "CNX-001", branch_name: "เซ็นทรัลเฟสติวัล เชียงใหม่", brand: "Studio7", bu: "Apple", province: "เชียงใหม่", region: "ภาคเหนือ", status: "Open", open_date: null, close_date: null, am: "ณัฏฐฤทธิ์", rm: "อรรณพ" },
-  { branch_code: "CRI-002", branch_name: "เซ็นทรัลเชียงราย", brand: "BaNANA", bu: "BaNANA", province: "เชียงราย", region: "ภาคเหนือ", status: "Project", open_date: "2026-12-01", close_date: null, am: "ณัฏฐฤทธิ์", rm: "อรรณพ" },
-  { branch_code: "HKT-004", branch_name: "เซ็นทรัลภูเก็ต", brand: "Studio7", bu: "Apple", province: "ภูเก็ต", region: "ภาคใต้", status: "Open", open_date: null, close_date: null, am: "", rm: "" },
+  { branch_code: "BKK-012", branch_name: "เซ็นทรัลลาดพร้าว", brand: "Studio7", bu: "Apple", province: "กรุงเทพฯ", region: "ภาคกลาง", status: "Open", open_date: null, close_date: null, am: "โชคชัย", rm: "ฐกรกฤตย์", full_name: "", ta: "" },
+  { branch_code: "BKK-045", branch_name: "สยามพารากอน", brand: "BaNANA", bu: "BaNANA", province: "กรุงเทพฯ", region: "ภาคกลาง", status: "Open", open_date: null, close_date: null, am: "สกานต์", rm: "พฤฒิชัย", full_name: "", ta: "" },
+  { branch_code: "NBI-003", branch_name: "เซ็นทรัลเวสต์เกต", brand: "Studio7", bu: "Apple", province: "นนทบุรี", region: "ภาคกลาง", status: "Open", open_date: null, close_date: null, am: "โชคชัย", rm: "ฐกรกฤตย์", full_name: "", ta: "" },
+  { branch_code: "CNX-001", branch_name: "เซ็นทรัลเฟสติวัล เชียงใหม่", brand: "Studio7", bu: "Apple", province: "เชียงใหม่", region: "ภาคเหนือ", status: "Open", open_date: null, close_date: null, am: "ณัฏฐฤทธิ์", rm: "อรรณพ", full_name: "", ta: "" },
+  { branch_code: "CRI-002", branch_name: "เซ็นทรัลเชียงราย", brand: "BaNANA", bu: "BaNANA", province: "เชียงราย", region: "ภาคเหนือ", status: "Project", open_date: "2026-12-01", close_date: null, am: "ณัฏฐฤทธิ์", rm: "อรรณพ", full_name: "", ta: "" },
+  { branch_code: "HKT-004", branch_name: "เซ็นทรัลภูเก็ต", brand: "Studio7", bu: "Apple", province: "ภูเก็ต", region: "ภาคใต้", status: "Open", open_date: null, close_date: null, am: "", rm: "", full_name: "", ta: "" },
   // Closing on 15/11: the processor cancels its open requisitions and flags the pending Offer for review.
-  { branch_code: "KKN-007", branch_name: "เซ็นทรัลขอนแก่น", brand: "Studio7", bu: "Apple", province: "ขอนแก่น", region: "ภาคอีสาน", status: "Closed", open_date: null, close_date: "2026-11-15", am: "ทัศน์พล", rm: "ทวีชัย" },
+  { branch_code: "KKN-007", branch_name: "เซ็นทรัลขอนแก่น", brand: "Studio7", bu: "Apple", province: "ขอนแก่น", region: "ภาคอีสาน", status: "Closed", open_date: null, close_date: "2026-11-15", am: "ทัศน์พล", rm: "ทวีชัย", full_name: "", ta: "" },
 ];
 
 const positions: Position[] = [

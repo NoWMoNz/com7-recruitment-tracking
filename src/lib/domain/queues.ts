@@ -1,4 +1,4 @@
-import { peopleOfBranch } from "./people";
+import { branchLabel, peopleOfBranch, taOf } from "./people";
 import { holdStart } from "./approval";
 import { canEditRequisition, inScope, normalizeEmail } from "./permissions";
 import { computeTat, holdDays } from "./tat";
@@ -21,9 +21,9 @@ interface Place {
   branchName: string;
   positionName: string;
   requestDate: LocalDate;
+  /** TA key and name the row is shown and filtered under (see taOf), and the branch's Area / Regional Manager. */
+  ta: string;
   taName: string;
-  /** Owner of the requisition (email) and the branch's Area / Regional Manager, for the dashboard filters. */
-  taEmail: string;
   am: string;
   rm: string;
 }
@@ -44,11 +44,10 @@ function makeLookup(d: Lookups) {
       province: b?.province ?? "",
       bu: buOf(b),
       branchCode: r.branch_code,
-      branchName: b?.branch_name || r.branch_code,
+      branchName: branchLabel(r.branch_code, b),
       positionName: positions.get(r.position_code)?.position_name || r.position_code,
       requestDate: r.request_date,
-      taName: nameOf(r.ta_email),
-      taEmail: r.ta_email,
+      ...taOf(b, r.ta_email, (e) => users.get(e)?.name),
       ...peopleOfBranch(b),
     };
   };

@@ -53,7 +53,7 @@ const pct = (a: number, b: number) => (b ? `${Math.round((a / b) * 100)}%` : "â€
 function Monthly({ r }: { r: ReportResult }) {
   const m = r.monthly;
   const line = (x: MonthlyRow, total = false) => (
-    <tr key={x.taEmail || x.taName} className={cn(total && "bg-black/[0.025] font-medium")}>
+    <tr key={x.ta || x.taName} className={cn(total && "bg-black/[0.025] font-medium")}>
       <td className={TD}>
         {x.taName}
         {!total && <span className="block text-xs text-muted-foreground">{x.region}</span>}

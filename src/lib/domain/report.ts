@@ -1,5 +1,5 @@
 import { addDays, daysBetween, formatThaiDate } from "./dates";
-import { peopleOfBranch } from "./people";
+import { branchLabel, peopleOfBranch, taOf } from "./people";
 import { inScope, normalizeEmail } from "./permissions";
 import { slaFor, type AppSettings } from "./settings";
 import { computeTat, holdDays } from "./tat";
@@ -137,12 +137,17 @@ function lookups(d: ReportData) {
   const users = new Map(d.users.map((u) => [normalizeEmail(u.email), u]));
   const regionOf = (r: Requisition) => branches.get(r.branch_code)?.region || "ไม่ระบุ";
   const nameOf = (email: string) => (email ? users.get(normalizeEmail(email))?.name || email : "ยังไม่มีเจ้าของ");
-  return { branches, positions, regionOf, nameOf };
+  /** The TA a requisition counts under (the shop's TA, else its owner; see taOf). */
+  const taFor = (r: Requisition) => {
+    const t = taOf(branches.get(r.branch_code), r.ta_email, (e) => users.get(e)?.name);
+    return { ta: t.ta, taName: t.taName || "ยังไม่มีเจ้าของ" };
+  };
+  return { branches, positions, regionOf, nameOf, taFor };
 }
 
 /** Requisitions the viewer may see that pass the filter. */
 export function filtered(d: ReportData, viewer: User, f: ReportFilter): Requisition[] {
-  const { branches } = lookups(d);
+  const { branches, taFor } = lookups(d);
   return d.requisitions.filter((r) => {
     const b = branches.get(r.branch_code);
     if (!inScope(viewer, b ?? { region: "ไม่ระบุ", branch_code: r.branch_code })) return false;
@@ -151,7 +156,7 @@ export function filtered(d: ReportData, viewer: User, f: ReportFilter): Requisit
     if (f.province && b?.province !== f.province) return false;
     if (f.branch && r.branch_code !== f.branch) return false;
     if (f.position && r.position_code !== f.position) return false;
-    if (f.ta && normalizeEmail(r.ta_email) !== normalizeEmail(f.ta)) return false;
+    if (f.ta && taFor(r).ta !== normalizeEmail(f.ta)) return false;
     if (f.am && peopleOfBranch(b).am !== f.am) return false;
     if (f.rm && peopleOfBranch(b).rm !== f.rm) return false;
     return true;
@@ -161,7 +166,8 @@ export function filtered(d: ReportData, viewer: User, f: ReportFilter): Requisit
 export interface MonthlyRow {
   /** The extra grouping key passed to monthlyRows; "" when none. */
   group?: string;
-  taEmail: string;
+  /** TA key (see taOf) and name. */
+  ta: string;
   taName: string;
   region: string;
   carriedIn: number;
@@ -179,15 +185,15 @@ export interface MonthlyRow {
   slaDays: number;
 }
 
-const zero = (taEmail: string, taName: string, region: string): MonthlyRow => ({
-  taEmail, taName, region, carriedIn: 0, new: 0, total: 0, closed: 0, cancel: 0, hold: 0, offerPending: 0, remaining: 0, tatMeet: 0, tatTotal: 0, tatDays: 0, slaDays: 0,
+const zero = (ta: string, taName: string, region: string): MonthlyRow => ({
+  ta, taName, region, carriedIn: 0, new: 0, total: 0, closed: 0, cancel: 0, hold: 0, offerPending: 0, remaining: 0, tatMeet: 0, tatTotal: 0, tatDays: 0, slaDays: 0,
 });
 
 /**
  * Cut per TA and region over a month ("2026-11") or any from–to range (spec §8). "Carried in" is the day before
  * the range starts; "Remaining" and "Offer pending" are taken at its last day, or today if that has not come yet.
  * TAT Meet counts offers made in the range (also ones later turned down or hired).
- * Credit goes to the requisition's current TA (owner changes are not tracked yet).
+ * Credit goes to the shop's TA from HR's database, else the requisition's current owner (owner changes are not tracked yet).
  */
 export function monthlyRows(
   d: ReportData & { offers: (Offer | Turndown | NewHire)[] },
@@ -201,12 +207,13 @@ export function monthlyRows(
   const end = last < today ? last : today;
   const before = addDays(first, -1);
   const byReq = indexLog(d.log);
-  const { positions, regionOf, nameOf } = lookups(d);
+  const { positions, regionOf, taFor } = lookups(d);
   const rows = new Map<string, MonthlyRow>();
   const row = (r: Requisition) => {
     const group = groupOf?.(r) ?? "";
-    const key = `${group}|${normalizeEmail(r.ta_email)}|${regionOf(r)}`;
-    if (!rows.has(key)) rows.set(key, { ...zero(normalizeEmail(r.ta_email), nameOf(r.ta_email), regionOf(r)), group });
+    const t = taFor(r);
+    const key = `${group}|${t.ta}|${regionOf(r)}`;
+    if (!rows.has(key)) rows.set(key, { ...zero(t.ta, t.taName, regionOf(r)), group });
     return rows.get(key)!;
   };
   const open = (s: Status | null) => s !== null && OPEN_STATUSES.includes(s);
@@ -256,8 +263,8 @@ export function monthlyRows(
 }
 
 /** Sums rows (e.g. a TA's regions) into one. */
-export function sumRows(rows: MonthlyRow[], taEmail = "", taName = "รวม", region = ""): MonthlyRow {
-  const t = zero(taEmail, taName, region);
+export function sumRows(rows: MonthlyRow[], ta = "", taName = "รวม", region = ""): MonthlyRow {
+  const t = zero(ta, taName, region);
   for (const r of rows) {
     for (const k of ["carriedIn", "new", "total", "closed", "cancel", "hold", "offerPending", "remaining", "tatMeet", "tatTotal", "tatDays", "slaDays"] as const) t[k] += r[k];
   }
@@ -267,8 +274,8 @@ export function sumRows(rows: MonthlyRow[], taEmail = "", taName = "รวม", 
 /** One row per TA (regions summed), for display. */
 export function byTa(rows: MonthlyRow[]): MonthlyRow[] {
   const groups = new Map<string, MonthlyRow[]>();
-  for (const r of rows) groups.set(r.taEmail, [...(groups.get(r.taEmail) ?? []), r]);
-  return [...groups.values()].map((g) => sumRows(g, g[0].taEmail, g[0].taName, g.map((r) => r.region).join(", ")));
+  for (const r of rows) groups.set(r.ta, [...(groups.get(r.ta) ?? []), r]);
+  return [...groups.values()].map((g) => sumRows(g, g[0].ta, g[0].taName, g.map((r) => r.region).join(", ")));
 }
 
 export interface HireRow {
@@ -292,7 +299,7 @@ export interface HireRow {
 
 /** Weekly report: people moved Offer -> Hired with hired_at in [first, last]. */
 export function hiresBetween(d: ReportData & { newHires: NewHire[] }, reqs: Requisition[], first: LocalDate, last: LocalDate): HireRow[] {
-  const { branches, positions, regionOf, nameOf } = lookups(d);
+  const { branches, positions, regionOf, taFor } = lookups(d);
   const reqById = new Map(reqs.map((r) => [r.id, r]));
   return d.newHires
     .filter((h) => h.hired_at >= first && h.hired_at <= last && reqById.has(h.req_id))
@@ -304,9 +311,9 @@ export function hiresBetween(d: ReportData & { newHires: NewHire[] }, reqs: Requ
         name: `${h.title}${h.first_name} ${h.last_name}`,
         region: regionOf(r),
         branchCode: r.branch_code,
-        branchName: branches.get(r.branch_code)?.branch_name || r.branch_code,
+        branchName: branchLabel(r.branch_code, branches.get(r.branch_code)),
         positionName: positions.get(r.position_code)?.position_name || r.position_code,
-        taName: nameOf(r.ta_email),
+        taName: taFor(r).taName,
         am: peopleOfBranch(branches.get(r.branch_code)).am || "-",
         rm: peopleOfBranch(branches.get(r.branch_code)).rm || "-",
         channel: h.sourcing_channel || "-",
@@ -354,7 +361,7 @@ export interface TurndownRow {
 }
 
 export function turndownsBetween(d: ReportData & { turndowns: Turndown[] }, reqs: Requisition[], first: LocalDate, last: LocalDate): TurndownRow[] {
-  const { branches, positions, nameOf } = lookups(d);
+  const { branches, positions, taFor } = lookups(d);
   const reqById = new Map(reqs.map((r) => [r.id, r]));
   return d.turndowns
     .filter((t) => t.turndown_date >= first && t.turndown_date <= last && reqById.has(t.req_id))
@@ -364,9 +371,9 @@ export function turndownsBetween(d: ReportData & { turndowns: Turndown[] }, reqs
         date: t.turndown_date,
         name: `${t.title}${t.first_name} ${t.last_name}`,
         branchCode: r.branch_code,
-        branchName: branches.get(r.branch_code)?.branch_name || r.branch_code,
+        branchName: branchLabel(r.branch_code, branches.get(r.branch_code)),
         positionName: positions.get(r.position_code)?.position_name || r.position_code,
-        taName: nameOf(r.ta_email),
+        taName: taFor(r).taName,
         offerDate: t.offer_date,
         daysAfterOffer: daysBetween(t.offer_date, t.turndown_date),
         channel: t.sourcing_channel || "-",
@@ -387,7 +394,8 @@ export function previousMonth(month: string): string {
 export function toSnapshot(rows: MonthlyRow[], month: string, computedAt: string): MonthlySnapshot[] {
   return rows.map((r) => ({
     month,
-    ta_email: r.taEmail,
+    // An account TA is stored by email; a TA from HR's database by name (as written, so it reads back the same).
+    ta_email: r.ta.includes("@") ? r.ta : r.ta ? r.taName : "",
     region: r.region,
     carried_in: r.carriedIn,
     new: r.new,
@@ -419,7 +427,7 @@ export function fromSnapshot(
   const rows = forMonth
     .filter((s) => s.computed_at === computedAt && keep(s))
     .map((s) => ({
-      taEmail: s.ta_email,
+      ta: normalizeEmail(s.ta_email),
       taName: nameOf(s.ta_email),
       region: s.region,
       carriedIn: s.carried_in,

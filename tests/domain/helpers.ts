@@ -10,7 +10,7 @@ export function req(p: Partial<Requisition> & Pick<Requisition, "id">): Requisit
 
 export function branch(p: Partial<Branch> & Pick<Branch, "branch_code">): Branch {
   return { branch_name: p.branch_code, brand: "Studio7", bu: "Apple", province: "กรุงเทพฯ", region: "ภาคกลาง", status: "Open",
-    open_date: null, close_date: null, am: "", rm: "", ...p };
+    open_date: null, close_date: null, am: "", rm: "", full_name: "", ta: "", ...p };
 }
 
 export function user(p: Partial<User> & Pick<User, "email">): User {

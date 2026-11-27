@@ -48,3 +48,5 @@ next-env.d.ts
 *.xlsx
 *.xls
 /Example/
+# สำรองข้อมูลจาก Sheet ก่อนนำเข้า (pnpm zone:import --write)
+/backups/

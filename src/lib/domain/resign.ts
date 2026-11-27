@@ -1,4 +1,4 @@
-import { peopleOfBranch } from "./people";
+import { branchLabel, peopleOfBranch, taOf } from "./people";
 import { formatThaiDate, parseUserDate, todayBangkok } from "./dates";
 import type { Plan } from "./offer";
 import { inScope, normalizeEmail } from "./permissions";
@@ -37,6 +37,9 @@ export interface ResignRow {
   reqStatus: Status | null;
   /** Owner (email) of that requisition; "" when there is none. */
   reqTaEmail: string;
+  /** TA key and name the row is shown and filtered under: the shop's TA, else that requisition's owner (see taOf). */
+  ta: string;
+  taName: string;
   canWithdraw: boolean;
 }
 
@@ -90,7 +93,7 @@ export function buildResignRows(
       province: b?.province ?? "",
       ...peopleOfBranch(b),
       branchCode: row.branch_code,
-      branchName: b?.branch_name || row.branch_code,
+      branchName: branchLabel(row.branch_code, b),
       positionName: positions.get(row.position_code)?.position_name || row.position_code,
       effectiveDate: row.effective_date,
       state: withdrawn ? "withdrawn" : row.effective_date > today ? "upcoming" : "resigned",
@@ -101,6 +104,7 @@ export function buildResignRows(
       reqId: linkedReq?.id ?? null,
       reqStatus: linkedReq?.status ?? null,
       reqTaEmail: linkedReq?.ta_email ?? "",
+      ...taOf(b, linkedReq?.ta_email ?? "", (e) => users.get(e)?.name),
       canWithdraw: !withdrawn && (viewer.role === "ta" || viewer.role === "super_admin"),
     });
   }

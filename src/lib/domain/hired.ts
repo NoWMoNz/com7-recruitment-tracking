@@ -1,4 +1,4 @@
-import { matchesPeople, peopleOfBranch, type People, type PeopleFilter } from "./people";
+import { branchLabel, matchesPeople, peopleOfBranch, taOf, type People, type PeopleFilter } from "./people";
 import { inScope, normalizeEmail } from "./permissions";
 import { buOf, type Branch, type LocalDate, type NewHire, type Position, type Requisition, type User } from "./types";
 
@@ -64,13 +64,12 @@ export function buildHiredRows(
       channel: h.sourcing_channel,
       positionName: positions.get(r?.position_code ?? "")?.position_name || r?.position_code || "-",
       branchCode: code,
-      branchName: b?.branch_name || code,
+      branchName: branchLabel(code, b),
       bu: buOf(b),
       region: b?.region || UNKNOWN_REGION,
       province: b?.province ?? "",
       ...peopleOfBranch(b),
-      taEmail: ta,
-      taName: users.get(normalizeEmail(ta))?.name || ta,
+      ...taOf(b, ta, (e) => users.get(e)?.name),
     });
   }
   const startKey = (x: HiredRow) => x.startDate ?? "";

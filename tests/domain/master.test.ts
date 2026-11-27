@@ -13,15 +13,22 @@ const now = new Date("2026-11-18T03:00:00.000Z");
 
 describe("validateMaster", () => {
   test("branch: normalises code, requires name and region, checks dates and uniqueness", () => {
-    const ok = validateMaster("Branches", { branch_code: "kkn-008", branch_name: " ขอนแก่น ", region: "ภาคอีสาน", status: "Open", close_date: "31/12/2026" }, ctx());
+    const ok = validateMaster("Branches", { branch_code: "kkn-008", branch_name: " ขอนแก่น ", region: "ภาคอีสาน", status: "Closed", close_date: "31/12/2026" }, ctx());
     expect(ok.ok && ok.value).toMatchObject({ branch_code: "KKN-008", branch_name: "ขอนแก่น", close_date: "2026-12-31", open_date: null });
-    const bad = validateMaster("Branches", { branch_code: "BKK-012", branch_name: "", region: "", open_date: "2026-12-01", close_date: "2026-11-01" }, ctx({ existingKeys: new Set(["BKK-012"]) }));
+    const bad = validateMaster("Branches", { branch_code: "BKK-012", branch_name: "", region: "", status: "Closed", open_date: "2026-12-01", close_date: "2026-11-01" }, ctx({ existingKeys: new Set(["BKK-012"]) }));
     expect(!bad.ok && Object.keys(bad.errors).sort()).toEqual(["branch_code", "branch_name", "close_date", "region"]);
   });
 
-  test("branch: keeps AM and RM, trimmed", () => {
-    const ok = validateMaster("Branches", { branch_code: "A1", branch_name: "x", region: "ภาคกลาง", status: "Open", am: " โชคชัย ", rm: "ฐกรกฤตย์" }, ctx());
-    expect(ok.ok && ok.value).toMatchObject({ am: "โชคชัย", rm: "ฐกรกฤตย์" });
+  test("branch: keeps AM, RM, TA and the full name, trimmed", () => {
+    const ok = validateMaster("Branches", { branch_code: "A1", branch_name: "x", region: "ภาคกลาง", status: "Open", am: " โชคชัย ", rm: "ฐกรกฤตย์", ta: " Chuthathip ", full_name: " ID1060 : BB-Emquartier-Sukhumvit " }, ctx());
+    expect(ok.ok && ok.value).toMatchObject({ am: "โชคชัย", rm: "ฐกรกฤตย์", ta: "Chuthathip", full_name: "ID1060 : BB-Emquartier-Sukhumvit" });
+  });
+
+  test("branch: Closed needs the closing date; any other status has none (re-opening clears it)", () => {
+    const closed = validateMaster("Branches", { branch_code: "A1", branch_name: "x", region: "ภาคกลาง", status: "Closed" }, ctx());
+    expect(!closed.ok && closed.errors.close_date).toBe("กรอกวันที่ปิดร้าน");
+    const reopened = validateMaster("Branches", { branch_code: "A1", branch_name: "x", region: "ภาคกลาง", status: "Open", open_date: "01/12/2026", close_date: "31/12/2026" }, ctx());
+    expect(reopened.ok && reopened.value).toMatchObject({ open_date: "2026-12-01", close_date: null });
   });
 
   test("editing keeps the original key and doesn't clash with itself", () => {

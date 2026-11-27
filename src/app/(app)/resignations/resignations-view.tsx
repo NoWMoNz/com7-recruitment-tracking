@@ -248,7 +248,7 @@ export function ResignationsView({ rows, canAdd, isAdmin, branches, positions }:
             <table className="w-full text-left text-sm">
               <thead className="text-xs text-muted-foreground">
                 <tr className="border-b border-black/[0.06] bg-black/[0.025]">
-                  {["พนักงาน", "สาขา / ตำแหน่ง", "วันที่มีผล", "สถานะ", "ตำแหน่งที่เปิดไว้", ""].map((h) => (
+                  {["พนักงาน", "สาขา / ตำแหน่ง", "TA", "วันที่มีผล", "สถานะ", "ตำแหน่งที่เปิดไว้", ""].map((h) => (
                     <th key={h} className="px-4 py-2.5 font-medium whitespace-nowrap">
                       {h}
                     </th>
@@ -268,6 +268,7 @@ export function ResignationsView({ rows, canAdd, isAdmin, branches, positions }:
                         {r.branchName} · {r.bu} · {r.region}
                       </span>
                     </td>
+                    <td className="px-4 py-3 whitespace-nowrap">{r.taName || "-"}</td>
                     <td className="px-4 py-3 whitespace-nowrap tabular-nums">{formatThaiDate(r.effectiveDate)}</td>
                     <td className="px-4 py-3">
                       <span className={cn("inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium whitespace-nowrap", STATE_CHIP[r.state])}>{RESIGN_STATE_LABEL[r.state]}</span>

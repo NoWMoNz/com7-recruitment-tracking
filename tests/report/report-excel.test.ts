@@ -22,7 +22,7 @@ describe("report workbook, weekly tab", () => {
     expect(row(2).slice(6, 9)).toEqual(["TA", "AM", "RM"]);
     expect(row(3).slice(6, 9)).toEqual(["มายด์", "ก", "R"]);
     expect([row(2)[2], row(2)[4]]).toEqual(["ชื่อพนักงาน", "สาขา"]);
-    expect(row(3)[4]).toBe("ID BKK-012_ลาดพร้าว");
+    expect(row(3)[4]).toBe("ลาดพร้าว");
   });
 });
 
@@ -31,13 +31,13 @@ describe("report workbook, turndown tab", () => {
     const r = {
       params: { tab: "turndowns", range: { first: "2026-11-01", last: "2026-11-30", all: false } },
       turndowns: {
-        rows: [{ date: "2026-11-10", name: "นางข ค", branchCode: "1060", branchName: "BB Emquartier Sukhumvit", positionName: "Sales", taName: "มายด์", offerDate: "2026-11-01", daysAfterOffer: 9, channel: "JobThai", reason: "ได้งานอื่น" }],
+        rows: [{ date: "2026-11-10", name: "นางข ค", branchCode: "1060", branchName: "ID1060 : BB-Emquartier-Sukhumvit", positionName: "Sales", taName: "มายด์", offerDate: "2026-11-01", daysAfterOffer: 9, channel: "JobThai", reason: "ได้งานอื่น" }],
       },
     } as unknown as ReportResult;
     const wb = new ExcelJS.Workbook();
     await wb.xlsx.load((await buildWorkbook(r)).buffer);
     const row = (n: number) => (wb.worksheets[0].getRow(n).values as unknown[]).slice(1);
     expect(row(2).slice(0, 3)).toEqual(["วันที่ Turndown", "ชื่อพนักงาน", "สาขา"]);
-    expect(row(3).slice(1, 3)).toEqual(["นางข ค", "ID 1060_BB_Emquartier_Sukhumvit"]);
+    expect(row(3).slice(1, 3)).toEqual(["นางข ค", "ID1060 : BB-Emquartier-Sukhumvit"]);
   });
 });

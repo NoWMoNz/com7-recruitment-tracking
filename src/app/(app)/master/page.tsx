@@ -5,6 +5,7 @@ import Link from "next/link";
 import { getSessionUser } from "@/lib/auth/session-user";
 import { todayBangkok } from "@/lib/domain/dates";
 import { assignableUsers, BRANCH_STATUSES, keyOf } from "@/lib/domain/master";
+import { branchLabel } from "@/lib/domain/people";
 import { normalizeEmail } from "@/lib/domain/permissions";
 import { getRepo } from "@/lib/repo";
 import { cn } from "@/lib/utils";
@@ -40,7 +41,7 @@ async function MasterContent({ tab }: { tab: Tab }) {
     repo.list("Users"),
     repo.list("Settings"),
   ]);
-  const branchOptions = [...branches].sort((a, b) => a.branch_name.localeCompare(b.branch_name, "th")).map((b) => ({ value: b.branch_code, label: `${b.branch_name} (${b.branch_code})` }));
+  const branchOptions = branches.map((b) => ({ value: b.branch_code, label: branchLabel(b.branch_code, b) })).sort((a, b) => a.label.localeCompare(b.label, "th"));
   const positionOptions = positions.map((p) => ({ value: p.position_code, label: p.position_name }));
   const taOptions = assignableUsers(users).map((u) => ({ value: normalizeEmail(u.email), label: `${u.name} (${u.email})` }));
   const regions = [...new Set(branches.map((b) => b.region).filter(Boolean))];
@@ -56,16 +57,17 @@ async function MasterContent({ tab }: { tab: Tab }) {
         <MasterTable
           entity="Branches"
           noun="สาขา"
-          rows={rowsOf("Branches", branches)}
+          rows={rowsOf("Branches", branches).map((r) => ({ ...r, label: branchLabel(String(r.branch_code), { branch_name: String(r.branch_name ?? ""), full_name: String(r.full_name ?? "") }) }))}
           columns={[
-            { key: "branch_name", label: "สาขา" },
-            { key: "branch_code", label: "", sub: true },
+            { key: "label", label: "สาขา" },
+            { key: "branch_name", label: "", sub: true },
             { key: "bu", label: "BU" },
             { key: "brand", label: "", sub: true },
             { key: "region", label: "ภาค" },
             { key: "province", label: "จังหวัด" },
             { key: "am", label: "AM" },
             { key: "rm", label: "RM" },
+            { key: "ta", label: "TA" },
             { key: "status", label: "สถานะ" },
             { key: "open_date", label: "วันเปิด", format: "date" },
             { key: "close_date", label: "วันปิดร้าน", format: "date" },
@@ -73,15 +75,17 @@ async function MasterContent({ tab }: { tab: Tab }) {
           fields={[
             { name: "branch_code", label: "รหัสสาขา", type: "text", lockOnEdit: true, required: true, placeholder: "เช่น BKK-012" },
             { name: "branch_name", label: "ชื่อสาขา", type: "text", required: true },
+            { name: "full_name", label: "ชื่อเต็ม (ตาม Database)", type: "text", placeholder: "เช่น ID1060 : BB-Emquartier-Sukhumvit", hint: "เว้นว่าง = ใช้ ID + รหัส + ชื่อสาขา" },
             { name: "bu", label: "BU", type: "text", hint: bus.length ? `ที่มี: ${bus.join(", ")}` : "ตาม Group ใหญ่ ในไฟล์ HR เช่น Apple, BaNANA" },
             { name: "brand", label: "แบรนด์ (Group เล็ก)", type: "text" },
             { name: "region", label: "ภาค", type: "text", required: true, hint: regions.length ? `ที่มี: ${regions.join(", ")}` : undefined },
             { name: "province", label: "จังหวัด", type: "text" },
             { name: "am", label: "AM", type: "text", hint: "Area Manager ตามชีต Zone ในไฟล์ HR" },
             { name: "rm", label: "RM", type: "text", hint: "Regional Manager ตามชีต Zone ในไฟล์ HR" },
+            { name: "ta", label: "TA", type: "text", hint: "ชื่อ TA ตาม Database (Zone TA) เช่น Chuthathip" },
             { name: "status", label: "สถานะ", type: "select", required: true, options: BRANCH_STATUSES.map((s) => ({ value: s, label: s })) },
-            { name: "open_date", label: "วันเปิดร้าน", type: "date" },
-            { name: "close_date", label: "วันปิดร้าน", type: "date", hint: "ถึงวันนี้ ตำแหน่งที่ยังเปิดจะถูกยกเลิกอัตโนมัติ" },
+            { name: "open_date", label: "วันเปิดร้าน", type: "date", showWhen: { field: "status", not: "Closed" } },
+            { name: "close_date", label: "วันปิดร้าน", type: "date", required: true, showWhen: { field: "status", is: "Closed" }, hint: "ถึงวันนี้ ตำแหน่งที่ยังเปิดจะถูกยกเลิกอัตโนมัติ" },
           ]}
           blank={{ status: "Open" }}
         />
@@ -125,7 +129,7 @@ async function MasterContent({ tab }: { tab: Tab }) {
         />
       );
     case "assignments": {
-      const branchName = new Map(branches.map((b) => [b.branch_code, b.branch_name]));
+      const branchName = new Map(branches.map((b) => [b.branch_code, branchLabel(b.branch_code, b)]));
       const userName = new Map(users.map((u) => [normalizeEmail(u.email), u.name]));
       const rows = rowsOf("RecruiterAssignments", assignments).map((r) => ({
         ...r,

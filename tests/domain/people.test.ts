@@ -1,30 +1,54 @@
 import { describe, expect, test } from "vitest";
-import { branchHeads, branchTaOf, handOverPreview, matchesPeople, peopleOfBranch, peopleOptions } from "@/lib/domain/people";
+import { branchHeads, branchLabel, branchTaOf, handOverPreview, matchesPeople, peopleOfBranch, peopleOptions, taOf } from "@/lib/domain/people";
 import { branch, req, user } from "./helpers";
 
 describe("matchesPeople", () => {
-  const x = { am: "A", rm: "R", taEmail: "Mind@x.com" };
-  test("TA matches whatever the email's case", () => {
+  const x = { am: "A", rm: "R", ta: "Mind@x.com" };
+  test("TA matches whatever the case", () => {
     expect(matchesPeople(x, { ta: "mind@x.com" })).toBe(true);
+    expect(matchesPeople({ am: "", rm: "", ta: "Chuthathip" }, { ta: "chuthathip" })).toBe(true);
   });
   test("a different AM does not match; no filter matches everything", () => {
     expect(matchesPeople(x, { am: "B" })).toBe(false);
     expect(matchesPeople(x, {})).toBe(true);
   });
   test("a branch without names never matches a set filter", () => {
-    expect(matchesPeople({ am: "", rm: "", taEmail: "" }, { rm: "R" })).toBe(false);
+    expect(matchesPeople({ am: "", rm: "", ta: "" }, { rm: "R" })).toBe(false);
   });
 });
 
 describe("peopleOptions", () => {
-  test("sorted, blanks skipped, TAs deduped by email with their name as label", () => {
+  test("sorted, blanks skipped, TAs deduped by key with their name as label", () => {
     expect(
       peopleOptions([
-        { am: "ข", rm: "", taEmail: "a@x.com", taName: "เอ" },
-        { am: "ก", rm: "R", taEmail: "A@x.com" },
-        { am: "", rm: "", taEmail: "" },
+        { am: "ข", rm: "", ta: "a@x.com", taName: "เอ" },
+        { am: "ก", rm: "R", ta: "A@x.com" },
+        { am: "", rm: "", ta: "Chuthathip", taName: "Chuthathip" },
+        { am: "", rm: "", ta: "" },
       ]),
-    ).toEqual({ ams: ["ก", "ข"], rms: ["R"], tas: [{ value: "a@x.com", label: "เอ" }] });
+    ).toEqual({ ams: ["ก", "ข"], rms: ["R"], tas: [{ value: "a@x.com", label: "เอ" }, { value: "chuthathip", label: "Chuthathip" }] });
+  });
+});
+
+describe("branchLabel", () => {
+  test("the shop's full name from HR's database", () => {
+    expect(branchLabel("1060", branch({ branch_code: "1060", branch_name: "BB Emquartier Sukhumvit", full_name: " ID1060 : BB-Emquartier-Sukhumvit " }))).toBe("ID1060 : BB-Emquartier-Sukhumvit");
+  });
+  test("without one, the same pattern built from the code and the name; an unknown shop is its code", () => {
+    expect(branchLabel("1060", branch({ branch_code: "1060", branch_name: "BB Emquartier Sukhumvit" }))).toBe("ID1060 : BB Emquartier Sukhumvit");
+    expect(branchLabel("9999", undefined)).toBe("ID9999");
+  });
+});
+
+describe("taOf", () => {
+  const names = (e: string) => ({ "mind@example.com": "มายด์" })[e];
+  test("the shop's TA from HR's database wins over the requisition's owner", () => {
+    expect(taOf(branch({ branch_code: "B1", ta: " Chuthathip " }), "mind@example.com", names)).toEqual({ ta: "chuthathip", taName: "Chuthathip" });
+  });
+  test("otherwise the owner, by their account name; nobody gives blanks", () => {
+    expect(taOf(branch({ branch_code: "B1" }), "Mind@Example.com", names)).toEqual({ ta: "mind@example.com", taName: "มายด์" });
+    expect(taOf(branch({ branch_code: "B1" }), "x@example.com", names)).toEqual({ ta: "x@example.com", taName: "x@example.com" });
+    expect(taOf(undefined, "", names)).toEqual({ ta: "", taName: "" });
   });
 });
 

@@ -2,7 +2,7 @@ import { addDays } from "./dates";
 import type { ManpowerRow } from "./manpower";
 import type { ResignRow } from "./resign";
 import { buOf, type Branch, type LocalDate, type Offer, type Requisition, type Turndown, type User } from "./types";
-import { peopleOfBranch, type People } from "./people";
+import { peopleOfBranch, taOf, type People } from "./people";
 import { inScope } from "./permissions";
 
 /** How far ahead the dashboard looks for resignations, and how far back it looks for declined Offers. */
@@ -30,7 +30,7 @@ export interface UpcomingResign extends Place {
 export function upcomingResignations(rows: ResignRow[]): UpcomingResign[] {
   return rows
     .filter((r) => r.state === "upcoming")
-    .map((r) => ({ region: r.region, province: r.province, bu: r.bu, am: r.am, rm: r.rm, taEmail: r.reqTaEmail, branchName: r.branchName, positionName: r.positionName, effectiveDate: r.effectiveDate }))
+    .map((r) => ({ region: r.region, province: r.province, bu: r.bu, am: r.am, rm: r.rm, ta: r.ta, branchName: r.branchName, positionName: r.positionName, effectiveDate: r.effectiveDate }))
     .sort((a, b) => a.effectiveDate.localeCompare(b.effectiveDate));
 }
 
@@ -62,7 +62,7 @@ export function manpowerGaps(rows: ManpowerRow[]): ManpowerGap[] {
       bu: r.bu,
       am: r.am,
       rm: r.rm,
-      taEmail: r.taEmail,
+      ta: r.ta,
       branchName: r.branchName,
       short: r.short,
       gap: r.positions.reduce((n, p) => n + Math.max(0, p.short - p.open), 0),
@@ -96,7 +96,7 @@ export function offerOutcomes(
     const r = reqById.get(o.req_id);
     const b = branchByCode.get(r?.branch_code ?? "");
     if (!b || !inScope(viewer, b)) return;
-    out.push({ region: b.region || UNKNOWN_REGION, province: b.province, bu: buOf(b), ...peopleOfBranch(b), taEmail: r?.ta_email ?? "", declinedReason });
+    out.push({ region: b.region || UNKNOWN_REGION, province: b.province, bu: buOf(b), ...peopleOfBranch(b), ta: taOf(b, r?.ta_email ?? "", () => undefined).ta, declinedReason });
   };
   for (const o of d.offers) add(o, null);
   for (const o of d.newHires) add(o, null);

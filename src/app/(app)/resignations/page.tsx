@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { getSessionUser } from "@/lib/auth/session-user";
 import { todayBangkok } from "@/lib/domain/dates";
+import { branchLabel } from "@/lib/domain/people";
 import { inScope } from "@/lib/domain/permissions";
 import { buildResignRows } from "@/lib/domain/resign";
 import { getRepo } from "@/lib/repo";
@@ -20,7 +21,7 @@ async function ResignationsContent() {
   const canAdd = user.role === "ta" || user.role === "super_admin";
   const branchOptions = branches
     .filter((b) => b.status !== "Closed" && inScope(user, b))
-    .map((b) => ({ value: b.branch_code, label: `${b.branch_name} (${b.branch_code})` }))
+    .map((b) => ({ value: b.branch_code, label: branchLabel(b.branch_code, b) }))
     .sort((a, b) => a.label.localeCompare(b.label, "th"));
   const positionOptions = positions.map((p) => ({ value: p.position_code, label: p.position_name })).sort((a, b) => a.label.localeCompare(b.label, "th"));
   return <ResignationsView rows={rows} canAdd={canAdd} isAdmin={user.role === "super_admin"} branches={branchOptions} positions={positionOptions} />;

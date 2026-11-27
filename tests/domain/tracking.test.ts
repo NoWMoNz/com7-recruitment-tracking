@@ -38,6 +38,19 @@ function data(over: Partial<TrackingData> = {}): TrackingData {
 const byId = (rows: { id: string }[]) => rows.map((r) => r.id).sort();
 
 describe("buildTrackingRows", () => {
+  test("shops are named and assigned as in HR's database; the owner still decides who may edit", () => {
+    const rows = buildTrackingRows(
+      data({ branches: [branch({ branch_code: "BKK-012", branch_name: "เซ็นทรัลลาดพร้าว", full_name: "ID12 : BN-Central-Ladprao", ta: "Chuthathip" }), branch({ branch_code: "CNX-001", branch_name: "เซ็นทรัลเฟสติวัล", region: "ภาคเหนือ" })] }),
+      mind,
+      today,
+      { mineOnly: false },
+    );
+    const v1 = rows.find((r) => r.id === "V1")!;
+    expect(v1).toMatchObject({ branchName: "ID12 : BN-Central-Ladprao", ta: "chuthathip", taName: "Chuthathip", taEmail: "mind@example.com", canEdit: true });
+    // A shop without a database name or TA: the name is built from its code, the TA is the owner.
+    expect(rows.find((r) => r.id === "N1")).toMatchObject({ branchName: "IDCNX-001 : เซ็นทรัลเฟสติวัล", ta: "other@example.com", taName: "other@example.com" });
+  });
+
   test("only on-process statuses", () => {
     const rows = buildTrackingRows(data(), ju, today, { mineOnly: false });
     expect(byId(rows)).toEqual(["N1", "O1", "PC", "PH", "U1", "V1"]);
@@ -100,7 +113,7 @@ describe("buildTrackingRows", () => {
   test("unknown branch is kept, not dropped", () => {
     const d = data({ requisitions: [req({ id: "X1", branch_code: "ZZZ-999" })] });
     const [row] = buildTrackingRows(d, ju, today, { mineOnly: false });
-    expect(row).toMatchObject({ id: "X1", branchName: "ZZZ-999", region: "ไม่ระบุ" });
+    expect(row).toMatchObject({ id: "X1", branchName: "IDZZZ-999", region: "ไม่ระบุ" });
   });
 
   test("sorted by region, branch, position, request date", () => {

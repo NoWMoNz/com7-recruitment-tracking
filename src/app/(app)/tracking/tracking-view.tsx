@@ -312,7 +312,7 @@ export function TrackingView({ rows, branches, mineOnly, canFilterMine, editCont
                     <ChevronDown aria-hidden className={cn("size-4 shrink-0 text-muted-foreground transition-transform", !open && "-rotate-90")} />
                     {/* Full shop name as in Branches: wraps instead of being cut off. */}
                     <span className="min-w-0 break-words">
-                      {g.branchName} <span className="font-sans text-xs font-normal text-muted-foreground">{g.branchCode}</span>
+                      {g.branchName}
                     </span>
                   </span>
                   <span className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">

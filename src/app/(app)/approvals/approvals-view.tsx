@@ -129,12 +129,12 @@ export function ApprovalsView({ rows }: { rows: Row[] }) {
                 <span className="text-xs text-muted-foreground">มีผล {formatThaiDate(r.effectiveDate)}</span>
               </div>
               <h2 className="font-heading leading-snug font-medium">
-                {r.positionName} · {r.branchName} <span className="font-sans text-sm font-normal text-muted-foreground">{r.branchCode}</span>
+                {r.positionName} · {r.branchName}
               </h2>
               <p className="text-sm text-foreground/80">“{r.reason}”</p>
               <p className="text-xs text-muted-foreground">
                 {r.region}
-                {r.province && ` · ${r.province}`} · แจ้งสรรหา {formatThaiDate(r.requestDate)} · ขอโดย {r.requestedBy} เมื่อ {thaiDateTime(r.requestedAt)}
+                {r.province && ` · ${r.province}`} · TA {r.taName || "-"} · แจ้งสรรหา {formatThaiDate(r.requestDate)} · ขอโดย {r.requestedBy} เมื่อ {thaiDateTime(r.requestedAt)}
               </p>
               <div className="mt-auto flex flex-wrap gap-2 pt-1">
                 <button

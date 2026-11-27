@@ -76,10 +76,14 @@ export function validateMaster(entity: MasterEntity, input: FormInput, ctx: Mast
         region: text(input.region),
         status,
         open_date: optionalDate(input.open_date, errors, "open_date"),
-        close_date: optionalDate(input.close_date, errors, "close_date"),
+        // Only a Closed shop has a closing date: re-opening one clears it, so it is no longer cancelled automatically.
+        close_date: status === "Closed" ? optionalDate(input.close_date, errors, "close_date") : null,
         am: text(input.am),
         rm: text(input.rm),
+        full_name: text(input.full_name),
+        ta: text(input.ta),
       };
+      if (status === "Closed" && !row.close_date && !errors.close_date) errors.close_date = "กรอกวันที่ปิดร้าน";
       if (!row.branch_name) errors.branch_name = "กรอกชื่อสาขา";
       if (!row.region) errors.region = "กรอกภาค";
       if (row.open_date && row.close_date && (row.close_date as string) < (row.open_date as string)) errors.close_date = "วันปิดต้องไม่ก่อนวันเปิด";

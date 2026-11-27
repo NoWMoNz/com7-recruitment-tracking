@@ -25,6 +25,14 @@ export interface FieldDef {
   required?: boolean;
   hint?: string;
   placeholder?: string;
+  /** Show the field only while another field has (`is`) or does not have (`not`) this value. */
+  showWhen?: { field: string; is?: string; not?: string };
+}
+
+function visible(f: FieldDef, values: Record<string, string>): boolean {
+  if (!f.showWhen) return true;
+  const v = values[f.showWhen.field] ?? "";
+  return (f.showWhen.is === undefined || v === f.showWhen.is) && (f.showWhen.not === undefined || v !== f.showWhen.not);
 }
 
 export interface ColumnDef {
@@ -77,7 +85,7 @@ function EditForm({ entity, noun, fields, row, blank, onDone }: { entity: Master
     >
       <FormError message={errors.form} />
       <div className="grid gap-3 sm:grid-cols-2">
-        {fields.map((f) => {
+        {fields.filter((f) => visible(f, values)).map((f) => {
           const id = `${uid}-${f.name}`;
           const locked = Boolean(row && f.lockOnEdit);
           const invalid = errors[f.name] ? { "aria-invalid": true as const, "aria-describedby": `${id}-err` } : {};

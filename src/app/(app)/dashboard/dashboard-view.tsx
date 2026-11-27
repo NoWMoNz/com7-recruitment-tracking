@@ -641,10 +641,10 @@ function DashboardBody({ rows: allRows, hiredRegions, turndownRegions, trend, ap
                     <ul className={cn(SPOT_GROUP, "divide-y divide-black/[0.06] border-t border-black/[0.06] py-1")}>
                       {s.tas.map((t) => (
                         <li
-                          key={t.email || "none"}
+                          key={t.key || "none"}
                           className={cn(SPOT, ROW, "flex flex-wrap items-center gap-x-4 gap-y-2 px-3 py-3")}
-                          {...bind(<StatsTip title={t.name || "ยังไม่มีเจ้าของ"} sub={t.email || undefined} s={t} hint={t.name ? "คลิกชื่อเพื่อดูในหน้าติดตาม" : undefined} />, {
-                            onSpot: (on) => spotRows(on ? (r) => r.taEmail === t.email : null, on ? `TA ${t.name || "ยังไม่มีเจ้าของ"}` : undefined),
+                          {...bind(<StatsTip title={t.name || "ยังไม่มีเจ้าของ"} sub={t.key.includes("@") ? t.key : undefined} s={t} hint={t.name ? "คลิกชื่อเพื่อดูในหน้าติดตาม" : undefined} />, {
+                            onSpot: (on) => spotRows(on ? (r) => r.ta === t.key : null, on ? `TA ${t.name || "ยังไม่มีเจ้าของ"}` : undefined),
                           })}
                         >
                           <span aria-hidden className="grid size-9 shrink-0 place-items-center rounded-full bg-ink-chip font-heading text-sm text-white">

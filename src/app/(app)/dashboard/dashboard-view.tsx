@@ -657,7 +657,7 @@ function DashboardBody({ rows: allRows, hiredRegions, turndownRegions, trend, ap
                           ) : (
                             <span className="min-w-0 flex-1 basis-40 truncate text-sm font-medium">ยังไม่มีเจ้าของ</span>
                           )}
-                          <StackBar s={t} max={maxTa} className="w-full basis-full sm:w-40 sm:basis-40" />
+                          <StackBar s={t} max={maxTa} full className="w-full basis-full sm:w-40 sm:basis-40" />
                           <span className="flex items-center gap-3 text-sm tabular-nums">
                             <span className="w-8 text-right font-heading font-medium">{t.open}</span>
                             <span className="inline-flex w-32 items-center gap-1.5 whitespace-nowrap text-foreground/65" title={`Offer ${t.offers} จากที่เปิดสรรหา ${t.open} ตำแหน่ง`}>

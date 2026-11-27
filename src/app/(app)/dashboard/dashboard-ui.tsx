@@ -99,9 +99,10 @@ export function pctText(n: number, total: number): string {
 
 /**
  * Stacked bar for a slice of rows: Offer first from the left, then one segment per aging band. Its length is
- * open / max, so rows compare by length and read by colour. Segments swell on hover and explain themselves in a tooltip.
+ * open / max, so rows compare by length and read by colour; with `full` every bar spans the whole track (100% of
+ * that row), so the Offer share reads as progress. Segments swell on hover and explain themselves in a tooltip.
  */
-export function StackBar({ s, max, className }: { s: RowStats; max: number; className?: string }) {
+export function StackBar({ s, max, full, className }: { s: RowStats; max: number; full?: boolean; className?: string }) {
   const { bind } = useTip();
   const segs = [
     { key: "offer", n: s.offers, color: OFFER_COLOR, label: "Offer แล้ว", note: "รอเข้างาน" },
@@ -113,12 +114,13 @@ export function StackBar({ s, max, className }: { s: RowStats; max: number; clas
       aria-label={`เปิดสรรหา ${s.open} ตำแหน่ง: ${segs.map((x) => `${x.label} ${x.n}`).join(", ")}`}
       className={cn("group/seg flex h-2.5 items-center rounded-full bg-black/[0.06]", className)}
     >
-      <span className="flex h-full gap-px" style={{ width: `${Math.max(4, (s.open / Math.max(1, max)) * 100)}%` }}>
+      <span className="flex h-full gap-px" style={{ width: full ? "100%" : `${Math.max(4, (s.open / Math.max(1, max)) * 100)}%` }}>
         {segs.map((x) => (
           <span
             key={x.key}
-            style={{ flexGrow: x.n, background: x.color }}
-            className="min-w-1 origin-center rounded-[3px] transition-[transform,scale,opacity] duration-150 first:rounded-l-full last:rounded-r-full group-hover/seg:opacity-35 hover:scale-y-[2.1] hover:opacity-100! motion-reduce:transition-none"
+            // Basis 0 so each segment's share is exactly n / open, and a change in share glides instead of jumping.
+            style={{ flexGrow: x.n, flexBasis: 0, background: x.color }}
+            className="min-w-1 origin-center rounded-[3px] [transition:flex-grow_600ms_ease-out,transform_150ms,scale_150ms,opacity_150ms] first:rounded-l-full last:rounded-r-full group-hover/seg:opacity-35 hover:scale-y-[2.1] hover:opacity-100! motion-reduce:transition-none"
             {...bind(
               <>
                 <TipTitle sub={x.note}>{x.label}</TipTitle>

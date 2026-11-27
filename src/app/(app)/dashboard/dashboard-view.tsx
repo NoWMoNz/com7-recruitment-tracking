@@ -19,7 +19,7 @@ import { TrendChart } from "./trend-chart";
 import { ThailandMap } from "./thailand-map";
 import { ActionTiles, AttentionCard, GroupCard, OutlookTiles, type ApprovalItem, type AttentionTab, type HoldItem } from "./dashboard-sections";
 import { BANDS, BAND_DOT, StatsTip, trackingHref, type NoteFn, type SpotFn, type SummaryNote } from "./dashboard-tips";
-import { CARD, GLASS, IconChip, ROW, SPOT, SPOT_BAR, SPOT_BAR_GROUP, SPOT_GROUP, SmoothHeight, StackBar, SWELL, useSettle } from "./dashboard-ui";
+import { CARD, GLASS, IconChip, OFFER_COLOR, pctText, ROW, SPOT, SPOT_BAR, SPOT_BAR_GROUP, SPOT_GROUP, SmoothHeight, StackBar, SWELL, useSettle } from "./dashboard-ui";
 import { TipNote, TipProvider, TipRow, TipTitle, useTip } from "./hover-tip";
 
 interface Props {
@@ -660,7 +660,11 @@ function DashboardBody({ rows: allRows, hiredRegions, turndownRegions, trend, ap
                           <StackBar s={t} max={maxTa} className="w-full basis-full sm:w-40 sm:basis-40" />
                           <span className="flex items-center gap-3 text-sm tabular-nums">
                             <span className="w-8 text-right font-heading font-medium">{t.open}</span>
-                            <span className="w-16 text-foreground/65">Offer {t.offers}</span>
+                            <span className="inline-flex w-32 items-center gap-1.5 whitespace-nowrap text-foreground/65" title={`Offer ${t.offers} จากที่เปิดสรรหา ${t.open} ตำแหน่ง`}>
+                              <span aria-hidden className="size-2 shrink-0 rounded-full" style={{ background: OFFER_COLOR }} />
+                              Offer {t.offers}
+                              <span className="text-foreground/45">({pctText(t.offers, t.open)})</span>
+                            </span>
                             <span className={cn("w-20 rounded-full px-2.5 py-0.5 text-center text-xs", t.notMeet > 0 ? "bg-red-100 text-[#b91c1c]" : "bg-black/5 text-foreground/65")}>Not Meet {t.notMeet}</span>
                           </span>
                         </li>

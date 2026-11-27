@@ -87,17 +87,25 @@ export const SWELL =
 export const ROW =
   "mx-2 rounded-2xl hover:scale-[1.018] focus-visible:scale-[1.018] hover:bg-white/90 focus-visible:bg-white/90 hover:shadow-[0_10px_28px_rgba(10,42,107,0.22)] hover:ring-1 hover:ring-white motion-reduce:hover:scale-100";
 
-const OFFER_COLOR = "#0d3d8f";
+/** Bright yellow so Offers stand out from the green → red aging bands (and from the navy of ปิดสำเร็จ). */
+export const OFFER_COLOR = "#facc15";
+
+/** Share of a total as a percentage: one decimal below 10% so a small share never reads as 0%. */
+export function pctText(n: number, total: number): string {
+  if (n <= 0 || total <= 0) return "0%";
+  const p = (n / total) * 100;
+  return p < 10 ? `${Number(p.toFixed(1))}%` : `${Math.round(p)}%`;
+}
 
 /**
- * Stacked bar for a slice of rows: one segment per aging band plus Offer. Its length is open / max, so rows
- * compare by length and read by colour. Segments swell on hover and explain themselves in a tooltip.
+ * Stacked bar for a slice of rows: Offer first from the left, then one segment per aging band. Its length is
+ * open / max, so rows compare by length and read by colour. Segments swell on hover and explain themselves in a tooltip.
  */
 export function StackBar({ s, max, className }: { s: RowStats; max: number; className?: string }) {
   const { bind } = useTip();
   const segs = [
-    ...BANDS.map((b) => ({ key: b as string, n: s.bands[b], color: BAND_DOT[b], label: `ว่างค้าง ${BAND_LABEL[b]}`, note: "ยังไม่มี Offer" })),
     { key: "offer", n: s.offers, color: OFFER_COLOR, label: "Offer แล้ว", note: "รอเข้างาน" },
+    ...BANDS.map((b) => ({ key: b as string, n: s.bands[b], color: BAND_DOT[b], label: `ว่างค้าง ${BAND_LABEL[b]}`, note: "ยังไม่มี Offer" })),
   ].filter((x) => x.n > 0);
   return (
     <span
@@ -115,7 +123,7 @@ export function StackBar({ s, max, className }: { s: RowStats; max: number; clas
               <>
                 <TipTitle sub={x.note}>{x.label}</TipTitle>
                 <TipRow dot={x.color} label="ตำแหน่ง" value={x.n} />
-                <TipRow label="จากทั้งหมดในแถวนี้" value={`${Math.round((x.n / Math.max(1, s.open)) * 100)}%`} />
+                <TipRow label="จากทั้งหมดในแถวนี้" value={pctText(x.n, s.open)} />
               </>,
             )}
           />
